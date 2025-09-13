@@ -1307,7 +1307,7 @@ def main():
 
         manager = MultiAccountManager("accounts.json")
         manager.run_all_accounts(
-            headless_override=args.headless,
+            headless_override=args.headless if args.headless else None,
             start_date=start_date,
             end_date=end_date
         )

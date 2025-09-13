@@ -4,13 +4,13 @@
 
 ## 功能特色
 
-✨ **自動登入**: 自動填入客代和密碼  
-🤖 **智能驗證碼偵測**: 多層次自動偵測右側4碼英數字驗證碼  
-📥 **精準下載**: 專門下載代收貨款匯款明細 Excel 檔案  
-👥 **多帳號支援**: 批次處理多個帳號，自動產生總結報告  
-📅 **彈性日期**: 支援命令列參數指定查詢日期範圍  
-📝 **智能檔案命名**: 檔案自動命名為 `帳號_編號.xlsx` 格式  
-🔄 **檔案覆蓋**: 重複執行會直接覆蓋同名檔案，保持目錄整潔  
+✨ **自動登入**: 自動填入客代和密碼
+🤖 **智能驗證碼偵測**: 多層次自動偵測右側4碼英數字驗證碼
+📥 **精準下載**: 專門下載代收貨款匯款明細 Excel 檔案
+👥 **多帳號支援**: 批次處理多個帳號，自動產生總結報告
+📅 **彈性日期**: 支援命令列參數指定查詢日期範圍
+📝 **智能檔案命名**: 檔案自動命名為 `帳號_編號.xlsx` 格式
+🔄 **檔案覆蓋**: 重複執行會直接覆蓋同名檔案，保持目錄整潔
 🌐 **跨平台**: 支援 macOS、Windows、Linux 系統
 
 ## 快速開始 🚀
@@ -77,7 +77,7 @@ uv sync
 
 # 或手動建立
 uv venv
-uv pip install -r requirements.txt
+uv sync
 ```
 
 #### 4. 環境設定
@@ -132,13 +132,13 @@ uv run python wedi_selenium_scraper.py --start-date 20241201 --end-date 20241208
 **Windows**：
 ```cmd
 # 使用預設設定（當日日期）
-run.cmd
+run.cmd download
 
 # 無頭模式（背景執行）
-.venv\Scripts\python.exe wedi_selenium_scraper.py --headless
+run.cmd download --headless
 
 # 指定日期範圍
-.venv\Scripts\python.exe wedi_selenium_scraper.py --start-date 20241201 --end-date 20241208
+run.cmd download --start-date 20241201 --end-date 20241208
 ```
 
 ### 自動執行流程
@@ -248,28 +248,31 @@ CHROME_BINARY_PATH="/usr/bin/google-chrome"
 
 ### 🔧 常見問題
 
-**Q: Chrome 瀏覽器啟動失敗**  
+**Q: Chrome 瀏覽器啟動失敗**
 A: 檢查 `.env` 檔案中的 `CHROME_BINARY_PATH` 是否正確
 
-**Q: Windows 顯示「找不到模組」錯誤**  
+**Q: Windows 顯示「找不到模組」錯誤**
 A: 虛擬環境未正確安裝，重新執行 `setup.cmd`
 
-**Q: 驗證碼偵測失敗**  
+**Q: 設定檔案中 headless: true 但還是顯示瀏覽器**
+A: 使用 `./run.sh download` 或 `run.cmd download` 會正確讀取設定檔案中的 headless 設定
+
+**Q: 驗證碼偵測失敗**
 A: 程式會自動嘗試多種偵測方法，失敗時會等待手動輸入
 
-**Q: iframe 導航錯誤**  
+**Q: iframe 導航錯誤**
 A: 程式已優化 iframe 處理，如遇問題請檢查 logs 目錄
 
-**Q: 找不到代收貨款項目**  
+**Q: 找不到代收貨款項目**
 A: 檢查帳號是否有代收貨款匯款明細的查詢權限，或該日期範圍是否有資料
 
-**Q: 只想處理特定帳號**  
+**Q: 只想處理特定帳號**
 A: 在 `accounts.json` 中將不需要的帳號設為 `"enabled": false`
 
-**Q: 想要背景執行**  
+**Q: 想要背景執行**
 A: 使用 `--headless` 參數或在 `accounts.json` 中設定 `"headless": true`
 
-**Q: 下載的檔案不是代收貨款匯款明細**  
+**Q: 下載的檔案不是代收貨款匯款明細**
 A: 程式已設定精準過濾，只會下載包含「代收貨款」和「匯款明細」的項目
 
 ## 依賴套件
