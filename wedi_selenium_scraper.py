@@ -5,10 +5,43 @@ import sys
 import os
 import time
 
+# 優先處理 Windows 編碼問題
+def safe_print(message):
+    """Windows 相容的列印函數"""
+    if sys.platform == "win32":
+        # Windows 環境，移除可能造成問題的 Unicode 字符
+        message = message.replace("✅", "[OK]")
+        message = message.replace("❌", "[ERROR]")
+        message = message.replace("⚠️", "[WARNING]")
+        message = message.replace("🔇", "[HEADLESS]")
+        message = message.replace("🖥️", "[WINDOW]")
+        message = message.replace("📦", "[PACKAGE]")
+        message = message.replace("🏢", "[MULTI]")
+        message = message.replace("📊", "[DATA]")
+        message = message.replace("🎯", "[TARGET]")
+    print(message)
+
+# 設定 Windows UTF-8 支援（如果可能）
+if sys.platform == "win32":
+    try:
+        # 設定控制台代碼頁為 UTF-8
+        os.system('chcp 65001 > nul 2>&1')
+        
+        # 設定控制台輸出編碼為 UTF-8
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+        
+        # 如果成功，使用正常的 print
+        safe_print = print
+    except Exception:
+        # 如果設定失敗，使用相容模式（已定義的 safe_print）
+        pass
+
 # 設定環境變數關閉輸出緩衝，確保 Windows 即時顯示
 # 檢查並強制設定 PYTHONUNBUFFERED 環境變數
 if not os.environ.get('PYTHONUNBUFFERED'):
-    print("⚠️ 偵測到未設定 PYTHONUNBUFFERED 環境變數")
+    safe_print("⚠️ 偵測到未設定 PYTHONUNBUFFERED 環境變數")
     print("📝 請使用以下方式執行以確保即時輸出：")
     if sys.platform == "win32":
         print("")
@@ -30,24 +63,12 @@ if not os.environ.get('PYTHONUNBUFFERED'):
         print("   export PYTHONUNBUFFERED=1")
         print("   python -u wedi_selenium_scraper.py")
     print("")
-    print("❌ 程式將退出，請使用上述方式重新執行")
+    safe_print("❌ 程式將退出，請使用上述方式重新執行")
     sys.exit(1)
 
-print("✅ PYTHONUNBUFFERED 環境變數已設定")
+safe_print("✅ PYTHONUNBUFFERED 環境變數已設定")
 
-# 設定 Windows 終端支援 UTF-8 輸出
-if sys.platform == "win32":
-    try:
-        # 設定控制台輸出編碼為 UTF-8
-        import codecs
-        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
-        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
-
-        # 設定控制台代碼頁為 UTF-8
-        os.system('chcp 65001 > nul')
-    except Exception:
-        # 如果設定失敗，使用替代方案
-        pass
+# Windows 編碼設定已在檔案開頭處理
 
 import re
 import json
