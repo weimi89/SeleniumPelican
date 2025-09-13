@@ -27,7 +27,9 @@ fi
 # 檢查參數並執行
 if [ "$1" = "download" ] || [ -z "$1" ]; then
     echo "📥 執行 WEDI 宅配通自動下載代收貨款匯款明細"
-    uv run python wedi_selenium_scraper.py "${@:2}"  # 傳遞除了第一個參數外的所有參數
+    # 設定環境變數確保即時輸出
+    export PYTHONUNBUFFERED=1
+    uv run python -u wedi_selenium_scraper.py "${@:2}"  # 傳遞除了第一個參數外的所有參數
 else
     echo "使用方式："
     echo "  ./run.sh                      - 執行自動下載代收貨款匯款明細"
