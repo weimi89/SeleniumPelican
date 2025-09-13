@@ -5,6 +5,36 @@ import sys
 import os
 import time
 
+# 設定環境變數關閉輸出緩衝，確保 Windows 即時顯示
+# 檢查並強制設定 PYTHONUNBUFFERED 環境變數
+if not os.environ.get('PYTHONUNBUFFERED'):
+    print("⚠️ 偵測到未設定 PYTHONUNBUFFERED 環境變數")
+    print("📝 請使用以下方式執行以確保即時輸出：")
+    if sys.platform == "win32":
+        print("")
+        print("   推薦方式1 - 使用 Windows 批次檔:")
+        print("   run.bat download")
+        print("")
+        print("   推薦方式2 - Windows 命令提示字元:")
+        print("   set PYTHONUNBUFFERED=1")
+        print("   python -u wedi_selenium_scraper.py")
+        print("")
+        print("   推薦方式3 - PowerShell:")
+        print("   $env:PYTHONUNBUFFERED='1'")
+        print("   python -u wedi_selenium_scraper.py")
+    else:
+        print("   推薦方式 - 使用 shell 腳本:")
+        print("   ./run.sh download")
+        print("")
+        print("   或手動設定:")
+        print("   export PYTHONUNBUFFERED=1")
+        print("   python -u wedi_selenium_scraper.py")
+    print("")
+    print("❌ 程式將退出，請使用上述方式重新執行")
+    sys.exit(1)
+
+print("✅ PYTHONUNBUFFERED 環境變數已設定")
+
 # 設定 Windows 終端支援 UTF-8 輸出
 if sys.platform == "win32":
     try:
@@ -78,6 +108,17 @@ class WEDISeleniumScraper:
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--window-size=1280,720")
 
+        # 隱藏 Chrome 警告訊息
+        chrome_options.add_argument("--disable-logging")
+        chrome_options.add_argument("--log-level=3")
+        chrome_options.add_argument("--silent")
+        chrome_options.add_argument("--disable-extensions")
+        chrome_options.add_argument("--disable-gpu-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--remote-debugging-port=0")  # 隱藏 DevTools listening 訊息
+        chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+
         # 如果設定為無頭模式，添加 headless 參數
         if self.headless:
             chrome_options.add_argument("--headless")
@@ -102,19 +143,60 @@ class WEDISeleniumScraper:
         }
         chrome_options.add_experimental_option("prefs", prefs)
 
-        # 使用 webdriver-manager 自動管理 ChromeDriver
-        try:
-            service = Service(ChromeDriverManager().install())
-            self.driver = webdriver.Chrome(service=service, options=chrome_options)
-            print("✅ 使用 GUI 模式啟動 Chrome")
-        except Exception as e:
-            print(f"⚠️ WebDriver Manager 失敗，嘗試使用系統 Chrome: {e}")
+        # 初始化 Chrome 瀏覽器 (優先使用系統 Chrome)
+        self.driver = None
+
+        # 方法1: 嘗試使用 .env 中設定的 ChromeDriver 路徑
+        chromedriver_path = os.getenv('CHROMEDRIVER_PATH')
+        if chromedriver_path and os.path.exists(chromedriver_path):
             try:
-                self.driver = webdriver.Chrome(options=chrome_options)
-                print("✅ 使用系統 Chrome GUI 模式")
-            except Exception as e2:
-                print(f"❌ Chrome 啟動失敗: {e2}")
-                raise e2
+                service = Service(chromedriver_path)
+                self.driver = webdriver.Chrome(service=service, options=chrome_options)
+                print(f"✅ 使用指定 ChromeDriver 啟動: {chromedriver_path}")
+            except Exception as env_error:
+                print(f"⚠️ 指定的 ChromeDriver 路徑失敗: {env_error}")
+
+        # 方法2: 嘗試使用系統 ChromeDriver (通常最穩定)
+        if not self.driver:
+            try:
+                # 配置 Chrome Service 來隱藏輸出
+                if sys.platform == "win32":
+                    # Windows 上重導向 Chrome 輸出到 null
+                    service = Service()
+                    service.creation_flags = 0x08000000  # CREATE_NO_WINDOW
+                else:
+                    # Linux/macOS 使用 devnull
+                    service = Service(log_path=os.devnull)
+
+                self.driver = webdriver.Chrome(service=service, options=chrome_options)
+                print("✅ 使用系統 Chrome 啟動")
+            except Exception as system_error:
+                print(f"⚠️ 系統 Chrome 失敗: {system_error}")
+
+        # 方法3: 最後嘗試 WebDriver Manager (可能有架構問題)
+        if not self.driver:
+            try:
+                # 抑制 ChromeDriverManager 的輸出
+                import logging
+                logging.getLogger('WDM').setLevel(logging.WARNING)
+
+                driver_path = ChromeDriverManager().install()
+                service = Service(driver_path)
+                self.driver = webdriver.Chrome(service=service, options=chrome_options)
+                print("✅ 使用 WebDriver Manager 啟動 Chrome")
+            except Exception as wdm_error:
+                print(f"⚠️ WebDriver Manager 也失敗: {wdm_error}")
+
+        # 如果所有方法都失敗
+        if not self.driver:
+            print(f"❌ 所有方法都失敗，請檢查以下項目:")
+            print(f"   1. 確認已安裝 Google Chrome 瀏覽器")
+            print(f"   2. 手動下載 ChromeDriver 並設定到 .env 檔案:")
+            print(f"      CHROMEDRIVER_PATH=\"C:\\path\\to\\chromedriver.exe\"")
+            print(f"   3. 或將 ChromeDriver 放入系統 PATH")
+            print(f"   4. 執行以下命令清除緩存:")
+            print(f"      rmdir /s \"%USERPROFILE%\\.wdm\"")
+            raise Exception("無法啟動 Chrome 瀏覽器")
         self.wait = WebDriverWait(self.driver, 10)
 
         print("✅ 瀏覽器初始化完成")

@@ -49,21 +49,52 @@ uv pip install -r requirements.txt
 ```
 
 ### 執行工具
-```bash
-# 使用 shell 腳本執行（推薦）
-./run.sh download
 
-# 直接使用 uv 執行 Python
-uv run wedi_selenium_scraper.py
+**重要：Windows 使用者必須先設定環境變數**
+```bash
+# Windows 命令提示字元
+set PYTHONUNBUFFERED=1
+
+# Windows PowerShell
+$env:PYTHONUNBUFFERED='1'
+
+# Linux/macOS
+export PYTHONUNBUFFERED=1
+```
+
+**執行命令：**
+
+**Windows 使用者（推薦）：**
+```cmd
+# 使用 Windows 批次檔（推薦，已自動設定環境變數）
+run.bat download
 
 # 使用日期參數
-uv run wedi_selenium_scraper.py --start-date 20241201 --end-date 20241208
+run.bat download --start-date 20241201 --end-date 20241208
 
 # 無頭模式
-uv run wedi_selenium_scraper.py --headless
+run.bat download --headless
+```
 
-# 傳統 Python 執行（如果環境已啟動）
-python wedi_selenium_scraper.py
+**Linux/macOS 使用者：**
+```bash
+# 使用 shell 腳本執行（推薦，已自動設定環境變數）
+./run.sh download
+
+# 使用日期參數
+./run.sh download --start-date 20241201 --end-date 20241208
+
+# 無頭模式
+./run.sh download --headless
+```
+
+**手動執行（需要先設定環境變數）：**
+```bash
+# 直接使用 uv 執行 Python
+uv run python -u wedi_selenium_scraper.py
+
+# 傳統 Python 執行
+python -u wedi_selenium_scraper.py
 ```
 
 ### 設定檔案
