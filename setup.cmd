@@ -7,13 +7,8 @@ pip install uv
 echo Step 2: Creating virtual environment...
 uv venv
 
-echo Step 3: Installing compatible versions for Windows...
-uv pip install selenium==4.15.0
-uv pip install webdriver-manager==4.0.1
-uv pip install requests==2.31.0
-uv pip install beautifulsoup4==4.12.2
-uv pip install openpyxl==3.1.2
-uv pip install python-dotenv==1.0.0
+echo Step 3: Installing dependencies...
+uv sync
 
 echo Step 4: Setting up Chrome path for Windows...
 if not exist ".env" (

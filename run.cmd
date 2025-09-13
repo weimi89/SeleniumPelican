@@ -47,6 +47,15 @@ if "%start_date%"=="" (
     echo 📅 使用指定開始日期: %start_date%
     uv run python -u wedi_selenium_scraper.py --start-date %start_date% %* 2>&1 | findstr /v "DevTools listening"
 )
+
+REM 檢查執行結果
+if %errorlevel% equ 0 (
+    echo.
+    echo ✅ 程式執行完成
+) else (
+    echo.
+    echo ❌ 程式執行時發生錯誤 (錯誤代碼: %errorlevel%)
+)
 goto end
 
 :usage
@@ -65,3 +74,4 @@ echo   set PYTHONUNBUFFERED=1
 echo   uv run python -u wedi_selenium_scraper.py [選項]
 
 :end
+pause
