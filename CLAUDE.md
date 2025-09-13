@@ -67,25 +67,19 @@ export PYTHONUNBUFFERED=1
 **Windows 使用者（推薦）：**
 ```cmd
 # 使用 Windows 批次檔（推薦，已自動設定環境變數）
-run.cmd download
-
-# 使用日期參數
-run.cmd download --start-date 20241201 --end-date 20241208
+run.cmd
 
 # 無頭模式
-run.cmd download --headless
+run.cmd --headless
 ```
 
 **Linux/macOS 使用者：**
 ```bash
 # 使用 shell 腳本執行（推薦，已自動設定環境變數）
-./run.sh download  # 與 ./run.sh 相同效果
-
-# 使用日期參數
-./run.sh download --start-date 20241201 --end-date 20241208
+./run.sh
 
 # 無頭模式
-./run.sh download --headless
+./run.sh --headless
 ```
 
 **手動執行（需要先設定環境變數）：**
@@ -137,7 +131,7 @@ python -u wedi_selenium_scraper.py
 ### headless 參數處理
 - 已修正 headless 參數處理邏輯，現在會正確讀取 `accounts.json` 中的 `settings.headless` 設定
 - 命令列的 `--headless` 參數會覆蓋設定檔案中的設定
-- `./run.sh download` 和 `./run.sh` 執行效果完全相同，都會互動式提示輸入日期
+- 執行腳本會互動式提示輸入日期，預設查詢過去7天
 
 ### 現代依賴管理
 - 已移除舊的 `requirements.txt`，統一使用 `pyproject.toml` + `uv.lock` 管理依賴

@@ -95,7 +95,7 @@ cp .env.example .env
 **macOS/Linux 系統**：
 ```bash
 # 使用 shell script (推薦)
-./run.sh download
+./run.sh
 
 # 或直接使用 uv 執行
 uv run python wedi_selenium_scraper.py
@@ -116,43 +116,41 @@ run.cmd
 
 **macOS/Linux**：
 ```bash
-# 使用預設設定（當日日期）
-./run.sh download
-
-# 指定日期範圍
-./run.sh download --start-date 20241201 --end-date 20241208
+# 互動式執行（會提示輸入開始日期）
+./run.sh
 
 # 無頭模式（背景執行）
-./run.sh download --headless
+./run.sh --headless
 
-# 或直接使用 uv
+# 或直接使用 uv 指定日期範圍
 uv run python wedi_selenium_scraper.py --start-date 20241201 --end-date 20241208
 ```
 
 **Windows**：
 ```cmd
-# 使用預設設定（當日日期）
-run.cmd download
+# 互動式執行（會提示輸入開始日期）
+run.cmd
 
 # 無頭模式（背景執行）
-run.cmd download --headless
+run.cmd --headless
 
-# 指定日期範圍
-run.cmd download --start-date 20241201 --end-date 20241208
+# 或直接使用 Python 指定日期範圍
+.venv\Scripts\python.exe wedi_selenium_scraper.py --start-date 20241201
 ```
 
 ### 自動執行流程
 
 程式會自動執行以下步驟：
 
-1. 🔐 **自動登入系統** - 讀取 `accounts.json` 中的帳號資訊
-2. 🧭 **智能導航** - 導航到代收貨款查詢頁面，處理複雜的 iframe 結構
-3. 📅 **設定日期範圍** - 使用指定日期或預設為當日
-4. 📊 **精準篩選** - 只搜尋「代收貨款匯款明細」，排除其他項目
-5. 📥 **自動下載** - 下載 Excel 檔案到 `downloads/` 目錄
-6. 📝 **智能重命名** - 檔案重命名為 `帳號_編號.xlsx` 格式
-7. 👥 **多帳號處理** - 依序處理所有啟用的帳號
-8. 📋 **生成報告** - 產生 JSON 格式的總結報告
+1. 📅 **互動式日期輸入** - 提示輸入開始日期，直接按 Enter 使用預設值（往前7天）
+2. 🔐 **自動登入系統** - 讀取 `accounts.json` 中的帳號資訊
+3. 🧭 **智能導航** - 導航到代收貨款查詢頁面，處理複雜的 iframe 結構
+4. 📅 **設定日期範圍** - 使用輸入的日期或預設往前7天範圍
+5. 📊 **精準篩選** - 只搜尋「代收貨款匯款明細」，排除其他項目
+6. 📥 **自動下載** - 下載 Excel 檔案到 `downloads/` 目錄
+7. 📝 **智能重命名** - 檔案重命名為 `帳號_編號.xlsx` 格式
+8. 👥 **多帳號處理** - 依序處理所有啟用的帳號
+9. 📋 **生成報告** - 產生 JSON 格式的總結報告
 
 ## 驗證碼偵測策略
 
@@ -255,7 +253,7 @@ A: 檢查 `.env` 檔案中的 `CHROME_BINARY_PATH` 是否正確
 A: 虛擬環境未正確安裝，重新執行 `setup.cmd`
 
 **Q: 設定檔案中 headless: true 但還是顯示瀏覽器**
-A: 使用 `./run.sh download` 或 `run.cmd download` 會正確讀取設定檔案中的 headless 設定
+A: 使用 `./run.sh` 或 `run.cmd` 會正確讀取設定檔案中的 headless 設定
 
 **Q: 驗證碼偵測失敗**
 A: 程式會自動嘗試多種偵測方法，失敗時會等待手動輸入
