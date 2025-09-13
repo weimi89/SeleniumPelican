@@ -26,12 +26,12 @@ if sys.platform == "win32":
     try:
         # 設定控制台代碼頁為 UTF-8
         os.system('chcp 65001 > nul 2>&1')
-        
+
         # 設定控制台輸出編碼為 UTF-8
         import codecs
         sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
         sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
-        
+
         # 如果成功，使用正常的 print
         safe_print = print
     except Exception:
@@ -1290,11 +1290,11 @@ def main():
     try:
         today = datetime.now()
 
-        # 處理開始日期：如果未指定則使用當日
+        # 處理開始日期：如果未指定則使用往前7天
         if args.start_date:
             start_date = datetime.strptime(args.start_date, '%Y%m%d')
         else:
-            start_date = today
+            start_date = today - timedelta(days=7)
 
         # 處理結束日期：如果未指定則使用當日
         if args.end_date:
@@ -1313,9 +1313,9 @@ def main():
         elif args.start_date:
             print(f"📅 從指定日期到當日: {start_date.strftime('%Y%m%d')} ~ {end_date.strftime('%Y%m%d')}")
         elif args.end_date:
-            print(f"📅 從當日到指定日期: {start_date.strftime('%Y%m%d')} ~ {end_date.strftime('%Y%m%d')}")
+            print(f"📅 從7天前到指定日期: {start_date.strftime('%Y%m%d')} ~ {end_date.strftime('%Y%m%d')}")
         else:
-            print(f"📅 查詢當日: {today.strftime('%Y%m%d')}")
+            print(f"📅 查詢日期範圍: {start_date.strftime('%Y%m%d')} ~ {end_date.strftime('%Y%m%d')} (預設7天)")
 
     except ValueError as e:
         print(f"⛔ 日期格式錯誤: {e}")
