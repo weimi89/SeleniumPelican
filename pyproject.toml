@@ -1,0 +1,31 @@
+[project]
+name = "wedi-selenium-scraper"
+version = "1.0.0"
+description = "WEDI 宅配通自動下載工具 - 專門下載代收貨款匯款明細"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "selenium>=4.15.0",
+    "webdriver-manager>=4.0.1",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.2",
+    "openpyxl>=3.1.2",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+wedi-scraper = "wedi_selenium_scraper:main"
+
+[tool.uv]
+dev-dependencies = []
+
+[tool.hatch.build.targets.wheel]
+include = [
+    "wedi_selenium_scraper.py",
+    "accounts.json",
+    ".env",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

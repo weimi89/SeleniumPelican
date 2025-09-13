@@ -1,0 +1,33 @@
+# 虛擬環境
+venv/
+env/
+.env
+
+# Python 快取檔案
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 截圖檔案
+*.png
+
+# 抓取的資料檔案
+scraped_data_*.json
+scraped_summary_*.json
+
+# 系統檔案
+.DS_Store
+Thumbs.db
+
+# 編輯器檔案
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 日誌檔案
+*.log
+
+# 暫存檔案
+temp/
+tmp/
