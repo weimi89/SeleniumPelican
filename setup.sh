@@ -147,11 +147,9 @@ setup_project() {
     uv venv
     
     # 安裝依賴
-    if [ -f "requirements.txt" ]; then
-        echo "📦 安裝 Python 套件..."
-        uv pip install -r requirements.txt
-        echo "✅ Python 套件安裝完成"
-    fi
+    echo "📦 安裝 Python 套件..."
+    uv sync
+    echo "✅ Python 套件安裝完成"
     
     # 確保 run.sh 可執行
     if [ -f "run.sh" ]; then
