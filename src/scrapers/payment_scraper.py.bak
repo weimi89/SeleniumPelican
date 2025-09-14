@@ -1,424 +1,48 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""
+代收貨款查詢工具
+使用基礎類別實作代收貨款匯款明細查詢功能
+"""
+
 import sys
 import os
 import time
-
-# 優先處理 Windows 編碼問題
-def safe_print(message):
-    """Windows 相容的列印函數"""
-    if sys.platform == "win32":
-        # Windows 環境，移除可能造成問題的 Unicode 字符
-        message = message.replace("✅", "[OK]")
-        message = message.replace("❌", "[ERROR]")
-        message = message.replace("⚠️", "[WARNING]")
-        message = message.replace("🔇", "[HEADLESS]")
-        message = message.replace("🖥️", "[WINDOW]")
-        message = message.replace("📦", "[PACKAGE]")
-        message = message.replace("🏢", "[MULTI]")
-        message = message.replace("📊", "[DATA]")
-        message = message.replace("🎯", "[TARGET]")
-    print(message)
-
-# 設定 Windows UTF-8 支援（如果可能）
-if sys.platform == "win32":
-    try:
-        # 設定控制台代碼頁為 UTF-8
-        os.system('chcp 65001 > nul 2>&1')
-
-        # 設定控制台輸出編碼為 UTF-8
-        import codecs
-        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
-        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
-
-        # 如果成功，使用正常的 print
-        safe_print = print
-    except Exception:
-        # 如果設定失敗，使用相容模式（已定義的 safe_print）
-        pass
-
-# 設定環境變數關閉輸出緩衝，確保 Windows 即時顯示
-# 檢查並強制設定 PYTHONUNBUFFERED 環境變數
-if not os.environ.get('PYTHONUNBUFFERED'):
-    safe_print("⚠️ 偵測到未設定 PYTHONUNBUFFERED 環境變數")
-    print("📝 請使用以下方式執行以確保即時輸出：")
-    if sys.platform == "win32":
-        print("")
-        print("   推薦方式1 - 使用 Windows 批次檔:")
-        print("   run.bat download")
-        print("")
-        print("   推薦方式2 - Windows 命令提示字元:")
-        print("   set PYTHONUNBUFFERED=1")
-        print("   python -u wedi_selenium_scraper.py")
-        print("")
-        print("   推薦方式3 - PowerShell:")
-        print("   $env:PYTHONUNBUFFERED='1'")
-        print("   python -u wedi_selenium_scraper.py")
-    else:
-        print("   推薦方式 - 使用 shell 腳本:")
-        print("   ./run.sh download")
-        print("")
-        print("   或手動設定:")
-        print("   export PYTHONUNBUFFERED=1")
-        print("   python -u wedi_selenium_scraper.py")
-    print("")
-    safe_print("❌ 程式將退出，請使用上述方式重新執行")
-    sys.exit(1)
-
-safe_print("✅ PYTHONUNBUFFERED 環境變數已設定")
-
-# Windows 編碼設定已在檔案開頭處理
-
 import re
-import json
+import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
-from dotenv import load_dotenv
 
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
+# 使用共用的模組和基礎類別
+from src.utils.windows_encoding_utils import safe_print, check_pythonunbuffered
+from src.core.base_scraper import BaseScraper
+from src.core.multi_account_manager import MultiAccountManager
+
+# 檢查 PYTHONUNBUFFERED 環境變數
+check_pythonunbuffered()
+
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 
 
-class WEDISeleniumScraper:
+class PaymentScraper(BaseScraper):
     """
-    使用 Selenium 的 WEDI 自動登入抓取工具
+    代收貨款查詢工具
+    繼承 BaseScraper 實作代收貨款匯款明細查詢
     """
-
+    
     def __init__(self, username, password, headless=False, download_base_dir="downloads", start_date=None, end_date=None):
-        # 載入環境變數
-        load_dotenv()
-
-        self.url = "http://wedinlb03.e-can.com.tw/wEDI2012/wedilogin.asp"
-        self.username = username
-        self.password = password
-        self.headless = headless
-
-        # 日期範圍設定
+        # 調用父類構造函數
+        super().__init__(username, password, headless, download_base_dir)
+        
+        # 子類特有的屬性
         self.start_date = start_date
         self.end_date = end_date
 
-        self.driver = None
-        self.wait = None
-
-        # 所有帳號使用同一個下載目錄
-        self.download_dir = Path(download_base_dir)
-        self.download_dir.mkdir(parents=True, exist_ok=True)
-
-        # 建立專屬資料夾
-        self.reports_dir = Path("reports")
-        self.logs_dir = Path("logs")
-        self.temp_dir = Path("temp")
-
-        # 確保資料夾存在
-        for dir_path in [self.reports_dir, self.logs_dir, self.temp_dir]:
-            dir_path.mkdir(parents=True, exist_ok=True)
-
-    def init_browser(self):
-        """初始化瀏覽器"""
-        print("🚀 啟動瀏覽器...")
-
-        # Chrome 選項設定
-        chrome_options = Options()
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--window-size=1280,720")
-
-        # 隱藏 Chrome 警告訊息
-        chrome_options.add_argument("--disable-logging")
-        chrome_options.add_argument("--log-level=3")
-        chrome_options.add_argument("--silent")
-        chrome_options.add_argument("--disable-extensions")
-        chrome_options.add_argument("--disable-gpu-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--remote-debugging-port=0")  # 隱藏 DevTools listening 訊息
-        chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
-
-        # 如果設定為無頭模式，添加 headless 參數
-        if self.headless:
-            chrome_options.add_argument("--headless")
-            print("🔇 使用無頭模式（不顯示瀏覽器視窗）")
-        else:
-            print("🖥️ 使用視窗模式（顯示瀏覽器）")
-
-        # 從環境變數讀取 Chrome 路徑（跨平台設定）
-        chrome_binary_path = os.getenv('CHROME_BINARY_PATH')
-        if chrome_binary_path:
-            chrome_options.binary_location = chrome_binary_path
-            print(f"🌐 使用指定 Chrome 路徑: {chrome_binary_path}")
-        else:
-            print("⚠️ 未設定 CHROME_BINARY_PATH 環境變數，使用系統預設 Chrome")
-
-        # 設定下載路徑
-        prefs = {
-            "download.default_directory": str(self.download_dir.absolute()),
-            "download.prompt_for_download": False,
-            "download.directory_upgrade": True,
-            "safebrowsing.enabled": True
-        }
-        chrome_options.add_experimental_option("prefs", prefs)
-
-        # 初始化 Chrome 瀏覽器 (優先使用系統 Chrome)
-        self.driver = None
-
-        # 方法1: 嘗試使用 .env 中設定的 ChromeDriver 路徑
-        chromedriver_path = os.getenv('CHROMEDRIVER_PATH')
-        if chromedriver_path and os.path.exists(chromedriver_path):
-            try:
-                service = Service(chromedriver_path)
-                self.driver = webdriver.Chrome(service=service, options=chrome_options)
-                print(f"✅ 使用指定 ChromeDriver 啟動: {chromedriver_path}")
-            except Exception as env_error:
-                print(f"⚠️ 指定的 ChromeDriver 路徑失敗: {env_error}")
-
-        # 方法2: 嘗試使用系統 ChromeDriver (通常最穩定)
-        if not self.driver:
-            try:
-                # 配置 Chrome Service 來隱藏輸出
-                if sys.platform == "win32":
-                    # Windows 上重導向 Chrome 輸出到 null
-                    service = Service()
-                    service.creation_flags = 0x08000000  # CREATE_NO_WINDOW
-                else:
-                    # Linux/macOS 使用 devnull
-                    service = Service(log_path=os.devnull)
-
-                self.driver = webdriver.Chrome(service=service, options=chrome_options)
-                print("✅ 使用系統 Chrome 啟動")
-            except Exception as system_error:
-                print(f"⚠️ 系統 Chrome 失敗: {system_error}")
-
-        # 方法3: 最後嘗試 WebDriver Manager (可能有架構問題)
-        if not self.driver:
-            try:
-                # 抑制 ChromeDriverManager 的輸出
-                import logging
-                logging.getLogger('WDM').setLevel(logging.WARNING)
-
-                driver_path = ChromeDriverManager().install()
-                service = Service(driver_path)
-                self.driver = webdriver.Chrome(service=service, options=chrome_options)
-                print("✅ 使用 WebDriver Manager 啟動 Chrome")
-            except Exception as wdm_error:
-                print(f"⚠️ WebDriver Manager 也失敗: {wdm_error}")
-
-        # 如果所有方法都失敗
-        if not self.driver:
-            print(f"❌ 所有方法都失敗，請檢查以下項目:")
-            print(f"   1. 確認已安裝 Google Chrome 瀏覽器")
-            print(f"   2. 手動下載 ChromeDriver 並設定到 .env 檔案:")
-            print(f"      CHROMEDRIVER_PATH=\"C:\\path\\to\\chromedriver.exe\"")
-            print(f"   3. 或將 ChromeDriver 放入系統 PATH")
-            print(f"   4. 執行以下命令清除緩存:")
-            print(f"      rmdir /s \"%USERPROFILE%\\.wdm\"")
-            raise Exception("無法啟動 Chrome 瀏覽器")
-        self.wait = WebDriverWait(self.driver, 10)
-
-        print("✅ 瀏覽器初始化完成")
-
-    def login(self):
-        """執行登入流程"""
-        print("🌐 開始登入流程...")
-
-        # 前往登入頁面
-        self.driver.get(self.url)
-        time.sleep(2)
-        print("✅ 登入頁面載入完成")
-
-        # 登入頁面載入完成
-
-        # 填寫表單
-        self.fill_login_form()
-        submit_success = self.submit_login()
-
-        if not submit_success:
-            print("❌ 登入失敗 - 表單提交有誤")
-            return False
-
-        # 檢查登入結果
-        success = self.check_login_success()
-        if success:
-            print("✅ 登入成功！")
-            return True
-        else:
-            print("❌ 登入失敗")
-            return False
-
-    def fill_login_form(self):
-        """填寫登入表單"""
-        print("📝 填寫登入表單...")
-
-        try:
-            # 填入客代
-            username_field = self.wait.until(
-                EC.presence_of_element_located((By.NAME, "CUST_ID"))
-            )
-            username_field.clear()
-            username_field.send_keys(self.username)
-            print(f"✅ 已填入客代: {self.username}")
-
-            # 填入密碼
-            password_field = self.driver.find_element(By.NAME, "CUST_PASSWORD")
-            password_field.clear()
-            password_field.send_keys(self.password)
-            print("✅ 已填入密碼")
-
-            # 偵測並填入驗證碼
-            captcha = self.detect_captcha()
-            if captcha:
-                captcha_field = self.driver.find_element(By.NAME, "KEY_RND")
-                captcha_field.clear()
-                captcha_field.send_keys(captcha)
-                print(f"✅ 已填入驗證碼: {captcha}")
-            else:
-                print("⚠️ 無法自動偵測驗證碼，等待手動輸入...")
-                time.sleep(10)  # 給用戶10秒手動輸入驗證碼
-
-        except Exception as e:
-            print(f"❌ 填寫表單失敗: {e}")
-
-    def detect_captcha(self):
-        """偵測驗證碼"""
-        print("🔍 偵測驗證碼...")
-
-        try:
-            # 方法1: 尋找紅色字體的識別碼 (通常在右側)
-            try:
-                red_elements = self.driver.find_elements(By.CSS_SELECTOR, "*[style*='color: red'], *[color='red'], font[color='red']")
-                for element in red_elements:
-                    text = element.text.strip()
-                    if re.match(r'^[A-Z0-9]{4}$', text):
-                        print(f"✅ 從紅色字體偵測到驗證碼: {text}")
-                        return text
-            except:
-                pass
-
-            # 方法2: 尋找包含 "識別碼:" 的文字
-            page_text = self.driver.page_source
-            match = re.search(r'識別碼[：:]\s*([A-Z0-9]{4})', page_text)
-            if match:
-                captcha = match.group(1)
-                print(f"✅ 從識別碼標籤偵測到驗證碼: {captcha}")
-                return captcha
-
-            # 方法3: 尋找table中的4碼英數字（通常在右側cell）
-            try:
-                tables = self.driver.find_elements(By.TAG_NAME, "table")
-                for table in tables:
-                    cells = table.find_elements(By.TAG_NAME, "td")
-                    for cell in cells:
-                        text = cell.text.strip()
-                        if re.match(r'^[A-Z0-9]{4}$', text) and text not in ['POST', 'GET', 'HTTP']:
-                            print(f"✅ 從表格偵測到驗證碼: {text}")
-                            return text
-            except:
-                pass
-
-            # 方法4: 搜尋頁面中的4碼英數字（排除常見干擾詞）
-            matches = re.findall(r'\b[A-Z0-9]{4}\b', page_text)
-            excluded_words = {'POST', 'GET', 'HTTP', 'HTML', 'HEAD', 'BODY', 'FORM', '2012', '2013', '2014', '2015', '2016', '2017', '2018', '2019', '2020', '2021', '2022', '2023', '2024', '2025'}
-
-            if matches:
-                for match in matches:
-                    # 過濾年份和常見網頁詞彙
-                    if match in excluded_words:
-                        continue
-                    if match.isdigit() and 1900 <= int(match) <= 2100:
-                        continue
-                    print(f"✅ 從頁面找到可能的驗證碼: {match}")
-                    return match
-
-        except Exception as e:
-            print(f"❌ 偵測驗證碼失敗: {e}")
-
-        return None
-
-    def submit_login(self):
-        """提交登入表單"""
-        print("📤 提交登入表單...")
-
-        try:
-            submit_button = self.driver.find_element(By.CSS_SELECTOR, 'input[type="submit"]')
-            submit_button.click()
-
-            # 等待頁面載入並處理可能的Alert
-            time.sleep(3)
-
-            # 檢查是否有Alert彈窗
-            try:
-                alert = self.driver.switch_to.alert
-                alert_text = alert.text
-                print(f"⚠️ 出現警告彈窗: {alert_text}")
-                alert.accept()  # 點擊確定
-                return False  # 登入失敗
-            except:
-                pass  # 沒有Alert彈窗
-
-            print("✅ 表單已提交")
-            return True
-
-        except Exception as e:
-            print(f"❌ 提交表單失敗: {e}")
-            return False
-
-    def check_login_success(self):
-        """檢查登入是否成功"""
-        print("🔐 檢查登入狀態...")
-
-        current_url = self.driver.current_url
-        print(f"📍 當前 URL: {current_url}")
-
-        # 檢查是否包含主選單
-        if 'wedimainmenu.asp' in current_url:
-            print("✅ 登入成功，已進入主選單")
-            return True
-        else:
-            print("❌ 登入失敗或頁面異常")
-            # 已移除截圖功能
-            return False
-
-    def navigate_to_payment_query(self):
-        """簡化導航 - 直接進入查件頁面並準備處理數據"""
-        print("🧭 簡化導航流程...")
-
-        try:
-            # 點擊查詢作業選單
-            query_menu = self.wait.until(
-                EC.element_to_be_clickable((By.LINK_TEXT, "查詢作業"))
-            )
-            query_menu.click()
-            time.sleep(2)
-            print("✅ 已點擊查詢作業選單")
-
-            # 點擊查件頁面
-            query_page = self.wait.until(
-                EC.element_to_be_clickable((By.LINK_TEXT, "查件頁面"))
-            )
-            query_page.click()
-            time.sleep(5)  # 等待頁面載入
-            print("✅ 已進入查件頁面")
-
-            # 切換到datamain iframe並保持在其中
-            iframe = self.wait.until(
-                EC.presence_of_element_located((By.NAME, "datamain"))
-            )
-            self.driver.switch_to.frame(iframe)
-            print("✅ 已切換到 datamain iframe，準備處理數據")
-
-            return True
-
-        except Exception as e:
-            print(f"❌ 導航失敗: {e}")
-            return False
-
     def set_date_range(self):
-        """設定查詢日期範圍 - 簡化版本"""
+        """設定查詢日期範圍 - 使用wedi_selenium_scraper.py的邏輯"""
         print("📅 設定日期範圍...")
 
         # 使用指定的日期範圍，如果沒有指定則使用預設值（當日）
@@ -485,7 +109,7 @@ class WEDISeleniumScraper:
             return True  # 即使失敗也返回True，讓流程繼續
 
     def get_payment_records(self):
-        """直接在iframe中搜尋代收貨款相關數據"""
+        """直接在iframe中搜尋代收貨款相關數據 - 使用wedi_selenium_scraper.py的邏輯"""
         print("📊 搜尋當前頁面中的代收貨款數據...")
 
         records = []
@@ -558,7 +182,7 @@ class WEDISeleniumScraper:
             return records
 
     def download_excel_for_record(self, record):
-        """為特定記錄下載Excel檔案 - 簡化版本"""
+        """為特定記錄下載Excel檔案 - 使用wedi_selenium_scraper.py的完整邏輯"""
         print(f"📥 下載記錄 {record['payment_no']} 的Excel檔案...")
 
         try:
@@ -609,8 +233,6 @@ class WEDISeleniumScraper:
                     pass
 
             print(f"   找到 {len(forms)} 個表單")
-
-            # 進入詳細頁面
 
             # 在詳細頁面填入查詢日期範圍
             print("📅 在詳細頁面填入查詢日期...")
@@ -679,7 +301,7 @@ class WEDISeleniumScraper:
                 for i, link in enumerate(links_after[:10]):
                     try:
                         text = link.text.strip()
-                        if text and "匯出" in text or "Excel" in text or "下載" in text:
+                        if text and ("匯出" in text or "Excel" in text or "下載" in text):
                             print(f"     重要連結 {i+1}: {text}")
                     except:
                         pass
@@ -1006,20 +628,6 @@ class WEDISeleniumScraper:
             print(f"⚠️ 下載匯款編號 {payment_no} 失敗: {e}")
             return False
 
-    def get_latest_downloads(self):
-        """獲取最新下載的檔案"""
-        download_files = []
-        for file_path in self.download_dir.glob("*"):
-            if file_path.is_file() and file_path.stat().st_mtime > time.time() - 60:  # 1分鐘內的檔案
-                download_files.append(str(file_path))
-        return download_files
-
-    def close(self):
-        """關閉瀏覽器"""
-        if self.driver:
-            self.driver.quit()
-            print("🔚 瀏覽器已關閉")
-
     def run_full_process(self):
         """執行完整的自動化流程"""
         success = False
@@ -1028,7 +636,7 @@ class WEDISeleniumScraper:
 
         try:
             print("=" * 60)
-            print(f"🤖 開始執行 WEDI Selenium 自動下載流程 (帳號: {self.username})")
+            print(f"🤖 開始執行代收貨款查詢流程 (帳號: {self.username})")
             print("=" * 60)
 
             # 1. 初始化瀏覽器
@@ -1041,12 +649,12 @@ class WEDISeleniumScraper:
                 return {"success": False, "username": self.username, "error": "登入失敗", "downloads": [], "records": []}
 
             # 3. 導航到查詢頁面
-            nav_success = self.navigate_to_payment_query()
+            nav_success = self.navigate_to_query()
             if not nav_success:
                 print(f"❌ 帳號 {self.username} 導航失敗")
                 return {"success": False, "username": self.username, "error": "導航失敗", "downloads": [], "records": []}
 
-            # 4. 設定日期範圍
+            # 4. 先設定日期範圍（雖然可能找不到輸入框）
             self.set_date_range()
 
             # 5. 獲取付款記錄
@@ -1065,9 +673,6 @@ class WEDISeleniumScraper:
                     print(f"⚠️ 帳號 {self.username} 下載記錄 {record.get('payment_no', 'unknown')} 失敗: {download_e}")
                     continue
 
-            # 7. 跳過個別報告生成（只保留總結報告）
-            # self.generate_report(records, all_downloads)  # 已停用
-
             print(f"🎉 帳號 {self.username} 自動化流程完成！")
             success = True
 
@@ -1075,203 +680,9 @@ class WEDISeleniumScraper:
 
         except Exception as e:
             print(f"💥 帳號 {self.username} 流程執行失敗: {e}")
-            if self.driver:
-                # 已移除截圖功能
-                pass
             return {"success": False, "username": self.username, "error": str(e), "downloads": all_downloads, "records": records}
         finally:
             self.close()
-
-    def generate_report(self, records, downloaded_files):
-        """生成執行報告"""
-        print("📋 生成執行報告...")
-
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        report = {
-            "execution_time": timestamp,
-            "total_records": len(records),
-            "records": [r['payment_no'] for r in records],
-            "downloaded_files": downloaded_files,
-            "download_directory": str(self.download_dir),
-            "total_downloads": len(downloaded_files)
-        }
-
-        report_filename = f"selenium_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        report_file = self.reports_dir / report_filename
-
-        with open(report_file, 'w', encoding='utf-8') as f:
-            json.dump(report, f, ensure_ascii=False, indent=2)
-
-        print(f"📋 執行報告已保存: {report_file}")
-        print("=" * 60)
-        print(f"📊 執行摘要:")
-        print(f"   時間: {timestamp}")
-        print(f"   付款記錄數: {len(records)}")
-        print(f"   下載檔案數: {len(downloaded_files)}")
-        print(f"   下載目錄: {self.download_dir}")
-        print("=" * 60)
-
-
-class MultiAccountManager:
-    """多帳號管理器"""
-
-    def __init__(self, config_file="accounts.json"):
-        self.config_file = config_file
-        self.load_config()
-
-    def load_config(self):
-        """載入設定檔"""
-        if not os.path.exists(self.config_file):
-            raise FileNotFoundError(
-                f"⛔ 設定檔 '{self.config_file}' 不存在！\n"
-                "📝 請建立 accounts.json 檔案，包含 accounts 和 settings 設定"
-            )
-
-        try:
-            with open(self.config_file, 'r', encoding='utf-8') as f:
-                self.config = json.load(f)
-
-            if "accounts" not in self.config or not self.config["accounts"]:
-                raise ValueError("⛔ 設定檔中沒有找到帳號資訊！")
-
-            print(f"✅ 已載入設定檔: {self.config_file}")
-
-        except json.JSONDecodeError as e:
-            raise ValueError(f"⛔ 設定檔格式錯誤: {e}")
-        except Exception as e:
-            raise RuntimeError(f"⛔ 載入設定檔失敗: {e}")
-
-    def get_enabled_accounts(self):
-        """取得啟用的帳號列表"""
-        return [acc for acc in self.config["accounts"] if acc.get("enabled", True)]
-
-    def run_all_accounts(self, headless_override=None, progress_callback=None, start_date=None, end_date=None):
-        """執行所有啟用的帳號"""
-        accounts = self.get_enabled_accounts()
-
-        results = []
-        settings = self.config.get("settings", {})
-
-        if progress_callback:
-            progress_callback(f"🚀 開始執行多帳號 WEDI 自動下載 (共 {len(accounts)} 個帳號)")
-        else:
-            print("\n" + "=" * 80)
-            print(f"🚀 開始執行多帳號 WEDI 自動下載 (共 {len(accounts)} 個帳號)")
-            print("=" * 80)
-
-        for i, account in enumerate(accounts, 1):
-            username = account["username"]
-            password = account["password"]
-
-            progress_msg = f"📊 [{i}/{len(accounts)}] 處理帳號: {username}"
-            if progress_callback:
-                progress_callback(progress_msg)
-            else:
-                print(f"\n{progress_msg}")
-                print("-" * 50)
-
-            try:
-                # 如果有命令列參數覆寫，則使用該設定
-                use_headless = headless_override if headless_override is not None else settings.get("headless", False)
-
-                scraper = WEDISeleniumScraper(
-                    username=username,
-                    password=password,
-                    headless=use_headless,
-                    download_base_dir=settings.get("download_base_dir", "downloads"),
-                    start_date=start_date,
-                    end_date=end_date
-                )
-
-                result = scraper.run_full_process()
-                results.append(result)
-
-                # 帳號間暫停一下避免過於頻繁
-                if i < len(accounts):
-                    print("⏳ 等待 3 秒後處理下一個帳號...")
-                    time.sleep(3)
-
-            except Exception as e:
-                print(f"💥 帳號 {username} 處理失敗: {e}")
-                results.append({
-                    "success": False,
-                    "username": username,
-                    "error": str(e),
-                    "downloads": [],
-                    "records": []
-                })
-                continue
-
-        # 生成總報告
-        self.generate_summary_report(results)
-        return results
-
-    def generate_summary_report(self, results):
-        """生成總體執行報告"""
-        print("\n" + "=" * 80)
-        print("📋 多帳號執行總結報告")
-        print("=" * 80)
-
-        successful_accounts = [r for r in results if r["success"]]
-        failed_accounts = [r for r in results if not r["success"]]
-        total_downloads = sum(len(r["downloads"]) for r in results)
-
-        print(f"📊 執行統計:")
-        print(f"   總帳號數: {len(results)}")
-        print(f"   成功帳號: {len(successful_accounts)}")
-        print(f"   失敗帳號: {len(failed_accounts)}")
-        print(f"   總下載檔案: {total_downloads}")
-
-        if successful_accounts:
-            print(f"\n✅ 成功帳號詳情:")
-            for result in successful_accounts:
-                username = result["username"]
-                download_count = len(result["downloads"])
-                if result.get("message") == "無資料可下載":
-                    print(f"   🔸 {username}: 無資料可下載")
-                else:
-                    print(f"   🔸 {username}: 成功下載 {download_count} 個檔案")
-
-        if failed_accounts:
-            print(f"\n❌ 失敗帳號詳情:")
-            for result in failed_accounts:
-                username = result["username"]
-                error = result.get("error", "未知錯誤")
-                print(f"   🔸 {username}: {error}")
-
-        # 保存詳細報告
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_filename = f"multi_account_report_{timestamp}.json"
-        report_file = Path("reports") / report_filename
-
-        # 清理結果中的不可序列化物件
-        clean_results = []
-        for result in results:
-            clean_result = {
-                "success": result["success"],
-                "username": result["username"],
-                "downloads": result["downloads"],
-                "records": len(result.get("records", [])) if result.get("records") else 0
-            }
-            if "error" in result:
-                clean_result["error"] = result["error"]
-            if "message" in result:
-                clean_result["message"] = result["message"]
-            clean_results.append(clean_result)
-
-        with open(report_file, 'w', encoding='utf-8') as f:
-            json.dump({
-                "execution_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "total_accounts": len(results),
-                "successful_accounts": len(successful_accounts),
-                "failed_accounts": len(failed_accounts),
-                "total_downloads": total_downloads,
-                "details": clean_results
-            }, f, ensure_ascii=False, indent=2)
-
-        print(f"\n💾 詳細報告已保存: {report_file}")
-        print("=" * 80)
 
 
 def main():
@@ -1279,7 +690,7 @@ def main():
     import argparse
     from datetime import datetime, timedelta
 
-    parser = argparse.ArgumentParser(description='WEDI 自動下載工具')
+    parser = argparse.ArgumentParser(description='代收貨款自動下載工具')
     parser.add_argument('--headless', action='store_true', help='使用無頭模式')
     parser.add_argument('--start-date', type=str, help='開始日期 (格式: YYYYMMDD，例如: 20241201)')
     parser.add_argument('--end-date', type=str, help='結束日期 (格式: YYYYMMDD，例如: 20241208)')
@@ -1324,10 +735,11 @@ def main():
 
     try:
         # 統一使用多帳號管理模式
-        print("🏢 WEDI 自動下載工具")
+        print("🏢 代收貨款自動下載工具")
 
         manager = MultiAccountManager("accounts.json")
         manager.run_all_accounts(
+            scraper_class=PaymentScraper,
             headless_override=args.headless if args.headless else None,
             start_date=start_date,
             end_date=end_date

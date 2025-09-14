@@ -4,23 +4,77 @@
 
 ## 專案概述
 
-這是一個 WEDI (宅配通) 自動化工具，使用 Selenium 自動從 WEDI 網頁系統下載代收貨款匯款明細。該工具支援多帳號處理，並可處理多種日期範圍的資料擷取。
+這是一個 WEDI (宅配通) 自動化工具套件，使用 Selenium 自動從 WEDI 網頁系統下載各種資料。支援代收貨款匯款明細查詢和運費(月結)結帳資料查詢。該工具採用現代化的模組化架構，使用抽象基礎類別設計，易於擴展新功能。
+
+## 專案結構
+
+```
+SeleniumPelican/
+├── src/                          # 所有 Python 原始碼
+│   ├── core/                     # 核心模組
+│   │   ├── base_scraper.py       # 基礎爬蟲類別
+│   │   ├── multi_account_manager.py  # 多帳號管理器
+│   │   └── browser_utils.py      # 瀏覽器初始化工具
+│   ├── scrapers/                 # 具體實作的爬蟲
+│   │   ├── payment_scraper.py    # 代收貨款查詢工具
+│   │   └── freight_scraper.py    # 運費查詢工具
+│   └── utils/                    # 工具模組
+│       ├── windows_encoding_utils.py  # Windows 相容性工具
+│       └── debug_captcha.py      # 驗證碼調試工具
+├── run_payment.sh/.cmd           # 代收貨款執行腳本
+├── run_freight.sh/.cmd           # 運費查詢執行腳本
+├── accounts.json                 # 帳號設定檔
+├── pyproject.toml               # Python 專案設定
+└── uv.lock                      # 鎖定依賴版本
+```
 
 ## 核心架構
 
-### 主要元件
+### 基礎模組 (src/core/)
 
-1. **WEDISeleniumScraper** (`wedi_selenium_scraper.py`): 核心自動化類別
-   - 處理 Chrome WebDriver 瀏覽器初始化
+1. **BaseScraper** (`src/core/base_scraper.py`): 核心基礎類別
+   - 處理 Chrome WebDriver 瀏覽器初始化和管理
    - 管理登入流程，包含自動驗證碼偵測
-   - 在 iframe 內導航到代收貨款查詢頁面
-   - 下載 Excel 檔案（支援 .xls 和 .xlsx 格式）
-   - 實作簡化的導航流程，保持在 iframe 內操作
+   - 實作基本的導航流程（查詢作業 → 查件頁面 → iframe 切換）
+   - 提供共用的瀏覽器管理和連接管理功能
 
-2. **MultiAccountManager** (`wedi_selenium_scraper.py`): 批次處理管理器
-   - 處理 `accounts.json` 中的多個帳號
+2. **MultiAccountManager** (`src/core/multi_account_manager.py`): 多帳號管理器
+   - 讀取和解析 `accounts.json` 設定檔
+   - 支援多帳號批次處理
    - 產生整合的總結報告
-   - 管理平行執行和錯誤處理
+   - 提供依賴注入模式支援不同的抓取器類別
+
+3. **browser_utils.py** (`src/core/browser_utils.py`): Chrome 瀏覽器初始化工具
+   - 跨平台 Chrome WebDriver 設定和啟動
+   - 支援無頭模式和視窗模式
+   - 自動處理 ChromeDriver 版本和路徑問題
+
+### 工具模組 (src/utils/)
+
+1. **windows_encoding_utils.py**: Windows 編碼相容性處理
+   - 提供 `safe_print()` 函數，將 Unicode 字符轉換為純文字
+   - 支援跨平台 Unicode 字符顯示
+   - 自動檢查和提醒 PYTHONUNBUFFERED 環境變數設定
+
+2. **debug_captcha.py**: 驗證碼調試工具
+   - 用於調試驗證碼偵測邏輯
+   - 提供多種驗證碼偵測方法測試
+
+### 爬蟲實作 (src/scrapers/)
+
+1. **PaymentScraper** (`src/scrapers/payment_scraper.py`): 代收貨款查詢工具
+   - 繼承 BaseScraper 實作代收貨款匯款明細查詢
+   - 支援日期範圍查詢（YYYYMMDD 格式）
+   - 預設查詢範圍為往前7天
+   - 精準過濾「代收貨款匯款明細」項目，排除「已收未結帳」類型
+   - 使用 MultiAccountManager 進行多帳號處理
+
+2. **FreightScraper** (`src/scrapers/freight_scraper.py`): 運費查詢工具
+   - 繼承 BaseScraper 實作運費(月結)結帳資料查詢
+   - 支援月份範圍查詢（YYYYMM 格式）
+   - 預設查詢月份為上個月
+   - 搜尋 (2-7) 運費(月結)結帳資料相關項目
+   - 月份參數自動轉換為完整日期範圍
 
 ### 關鍵技術細節
 
@@ -62,33 +116,69 @@ $env:PYTHONUNBUFFERED='1'
 export PYTHONUNBUFFERED=1
 ```
 
-**執行命令：**
+#### 代收貨款查詢
 
 **Windows 使用者（推薦）：**
 ```cmd
 # 使用 Windows 批次檔（推薦，已自動設定環境變數）
-run.cmd
+run_payment.cmd
 
-# 無頭模式
-run.cmd --headless
+# 使用日期參數
+run_payment.cmd --start-date 20241201 --end-date 20241208
+
+# 無頭模式（注意：無法手動輸入驗證碼）
+run_payment.cmd --headless
 ```
 
 **Linux/macOS 使用者：**
 ```bash
 # 使用 shell 腳本執行（推薦，已自動設定環境變數）
-./run.sh
+./run_payment.sh
+
+# 使用日期參數
+./run_payment.sh --start-date 20241201 --end-date 20241208
+
+# 無頭模式（注意：無法手動輸入驗證碼）
+./run_payment.sh --headless
+```
+
+#### 運費查詢
+
+**Windows 使用者：**
+```cmd
+# 使用 Windows 批次檔
+run_freight.cmd
+
+# 使用月份參數
+run_freight.cmd --start-month 202411 --end-month 202412
 
 # 無頭模式
-./run.sh --headless
+run_freight.cmd --headless
+```
+
+**Linux/macOS 使用者：**
+```bash
+# 使用 shell 腳本執行
+./run_freight.sh
+
+# 使用月份參數
+./run_freight.sh --start-month 202411 --end-month 202412
+
+# 無頭模式
+./run_freight.sh --headless
 ```
 
 **手動執行（需要先設定環境變數）：**
 ```bash
-# 直接使用 uv 執行 Python
-uv run python -u wedi_selenium_scraper.py
+# 代收貨款查詢
+PYTHONPATH="$(pwd)" uv run python -u src/scrapers/payment_scraper.py
 
-# 傳統 Python 執行
-python -u wedi_selenium_scraper.py
+# 運費查詢
+PYTHONPATH="$(pwd)" uv run python -u src/scrapers/freight_scraper.py
+
+# Windows 使用者設定：
+# set PYTHONPATH=%cd%
+# uv run python -u src\scrapers\payment_scraper.py
 ```
 
 ### 設定檔案
@@ -105,16 +195,42 @@ python -u wedi_selenium_scraper.py
 
 ## 輸出結構
 
-- **downloads/**: 按帳號下載的 Excel 檔案（格式：`{username}_{payment_no}.xlsx`）
+- **downloads/**: 按帳號下載的 Excel 檔案
+  - 代收貨款：`{username}_{payment_no}.xlsx`
+  - 運費資料：`{username}_freight_{record_id}.xlsx`
 - **reports/**: 個別帳號執行報告（目前版本已停用）
 - **logs/**: 執行日誌和除錯資訊
 - **temp/**: 暫存處理檔案
 
 ## 重要實作說明
 
+### 驗證碼處理
+
+**自動偵測機制**：
+- 程式會嘗試5種方法自動偵測登入頁面的4位英數字驗證碼
+- 成功偵測到驗證碼會自動填入並登入
+
+**手動輸入模式**：
+- 無法自動偵測時，程式會等待20秒讓用戶手動輸入
+- **重要**：背景模式（--headless）無法手動輸入，建議使用視窗模式
+
+**重試機制**：
+- 登入失敗會自動重試最多3次
+- 每次重試會重新載入頁面和重新偵測驗證碼
+
+**調試工具**：
+```bash
+# Windows
+set PYTHONPATH=%cd%
+python -u src\utils\debug_captcha.py
+
+# Linux/macOS  
+PYTHONPATH="$(pwd)" python -u src/utils/debug_captcha.py
+```
+
 ### iframe 管理
 工具在整個過程中維持 iframe 上下文以避免 Chrome 崩潰：
-- `navigate_to_payment_query()`: 進入 iframe 並保持
+- `navigate_to_query()`: 進入 iframe 並保持
 - `set_date_range()`: 在現有 iframe 上下文中工作
 - `get_payment_records()`: 在 iframe 內搜尋
 - `download_excel_for_record()`: 在 iframe 內下載
@@ -133,7 +249,24 @@ python -u wedi_selenium_scraper.py
 - 命令列的 `--headless` 參數會覆蓋設定檔案中的設定
 - 執行腳本會互動式提示輸入日期，預設查詢過去7天
 
-### 現代依賴管理
-- 已移除舊的 `requirements.txt`，統一使用 `pyproject.toml` + `uv.lock` 管理依賴
+### 現代化改進
+
+**模組化架構**：
+- 採用 `src/` 目錄結構，符合現代 Python 專案標準
+- 根目錄不包含 Python 檔案，保持整潔
+- 清晰的模組分離：core（核心）、scrapers（實作）、utils（工具）
+
+**依賴管理**：
+- 移除舊的 `requirements.txt`，統一使用 `pyproject.toml` + `uv.lock`
 - 避免版本衝突和重複安裝問題
 - 使用 `uv sync` 確保依賴版本一致性
+
+**Windows 相容性**：
+- 實作 `safe_print()` 函數處理 Unicode 字符顯示問題
+- 所有 Unicode 字符（如 ✅ ❌ 🎉）自動轉換為純文字標籤
+- 確保在 Windows 命令提示字元中正常顯示
+
+**執行腳本優化**：
+- 提供跨平台執行腳本（.sh 和 .cmd）
+- 自動設定必要的環境變數（PYTHONUNBUFFERED、PYTHONPATH）
+- 簡化使用者執行流程
