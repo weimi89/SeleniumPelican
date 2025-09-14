@@ -1,36 +1,44 @@
 # WEDI 宅配通自動下載工具 📦
 
-一個使用 Python + Selenium 建立的自動化工具，專門用於自動登入 WEDI（宅配通）系統並下載代收貨款匯款明細。
+一個使用 Python + Selenium 建立的現代化自動化工具套件，專門用於自動登入 WEDI（宅配通）系統並下載各種資料。支援代收貨款匯款明細和運費(月結)結帳資料查詢。
 
 ## 功能特色
 
 ✨ **自動登入**: 自動填入客代和密碼
 🤖 **智能驗證碼偵測**: 多層次自動偵測右側4碼英數字驗證碼
-📥 **精準下載**: 專門下載代收貨款匯款明細 Excel 檔案
+💰 **代收貨款查詢**: 下載代收貨款匯款明細 Excel 檔案
+🚛 **運費查詢**: 下載運費(月結)結帳資料 Excel 檔案
 👥 **多帳號支援**: 批次處理多個帳號，自動產生總結報告
-📅 **彈性日期**: 支援命令列參數指定查詢日期範圍
+📅 **彈性日期**: 支援不同的日期格式（YYYYMMDD 或 YYYYMM）
 📝 **智能檔案命名**: 檔案自動命名為 `帳號_編號.xlsx` 格式
 🔄 **檔案覆蓋**: 重複執行會直接覆蓋同名檔案，保持目錄整潔
-🌐 **跨平台**: 支援 macOS、Windows、Linux 系統
+🏗️ **模組化架構**: 使用現代化 src/ 目錄結構和抽象基礎類別
+🌐 **跨平台相容**: 支援 macOS、Windows、Linux 系統
+🖥️ **Windows 友善**: Unicode 字符自動轉換，完美支援中文 Windows 環境
+
+## 專案結構
+
+```
+SeleniumPelican/
+├── src/                          # 所有 Python 原始碼
+│   ├── core/                     # 核心模組
+│   │   ├── base_scraper.py       # 基礎爬蟲類別
+│   │   ├── multi_account_manager.py  # 多帳號管理器
+│   │   └── browser_utils.py      # 瀏覽器初始化工具
+│   ├── scrapers/                 # 具體實作的爬蟲
+│   │   ├── payment_scraper.py    # 代收貨款查詢工具
+│   │   └── freight_scraper.py    # 運費查詢工具
+│   └── utils/                    # 工具模組
+│       ├── windows_encoding_utils.py  # Windows 相容性工具
+│       └── debug_captcha.py      # 驗證碼調試工具
+├── run_payment.sh/.cmd           # 代收貨款執行腳本
+├── run_freight.sh/.cmd           # 運費查詢執行腳本
+├── accounts.json                 # 帳號設定檔
+├── pyproject.toml               # Python 專案設定
+└── uv.lock                      # 鎖定依賴版本
+```
 
 ## 快速開始 🚀
-
-### Windows 新手用戶 🪟
-
-**完全沒有程式經驗？請先安裝基礎環境：**
-
-1. **安裝 Python**
-   - 前往：https://www.python.org/downloads/
-   - 點擊黃色 "Download Python" 按鈕
-   - **重要**：安裝時勾選 "Add Python to PATH"
-
-2. **安裝 Chrome**
-   - 前往：https://www.google.com/chrome/
-   - 下載並安裝
-
-3. **執行安裝**
-   - 雙擊專案中的 `setup.cmd`
-   - 等待安裝完成
 
 ### 方法一：一鍵自動安裝 (推薦) ⚡
 
@@ -42,7 +50,7 @@ chmod +x setup.sh && ./setup.sh
 
 **Windows**：
 ```cmd
-# 雙擊執行
+# 雙擊執行或在命令提示字元中執行
 setup.cmd
 ```
 
@@ -54,14 +62,7 @@ setup.cmd
 
 ### 方法二：手動安裝
 
-如果您偏好手動控制安裝過程：
-
-#### 1. 安裝 Python
-- **Windows**: 從 [python.org](https://www.python.org/downloads/) 下載安裝
-- **macOS**: `brew install python3` 或從官網下載
-- **Linux**: `sudo apt install python3 python3-pip` (Ubuntu/Debian)
-
-#### 2. 安裝 uv (Python 套件管理工具)
+#### 1. 安裝 Python 和 uv
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -70,17 +71,13 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
-#### 3. 建立環境並安裝依賴
+#### 2. 建立環境並安裝依賴
 ```bash
 # 自動建立虛擬環境並安裝依賴
 uv sync
-
-# 或手動建立
-uv venv
-uv sync
 ```
 
-#### 4. 環境設定
+#### 3. 環境設定
 ```bash
 # 複製環境設定範例檔案
 cp .env.example .env
@@ -90,71 +87,85 @@ cp .env.example .env
 # Windows 範例: CHROME_BINARY_PATH="C:\Program Files\Google\Chrome\Application\chrome.exe"
 ```
 
-### 5. 快速執行
-
-**macOS/Linux 系統**：
-```bash
-# 使用 shell script (推薦)
-./run.sh
-
-# 或直接使用 uv 執行
-uv run python wedi_selenium_scraper.py
-```
-
-**Windows 系統**：
-```cmd
-# 使用批次檔 (推薦)
-run.cmd
-
-# 或直接使用虛擬環境執行
-.venv\Scripts\python.exe wedi_selenium_scraper.py
-```
-
 ## 使用方式
 
-### 基本使用
+### 代收貨款查詢
 
-**macOS/Linux**：
+**推薦使用方式 (跨平台腳本)**：
 ```bash
-# 互動式執行（會提示輸入開始日期）
-./run.sh
+# macOS/Linux
+./run_payment.sh
 
-# 無頭模式（背景執行）
-./run.sh --headless
+# Windows
+run_payment.cmd
 
-# 或直接使用 uv 指定日期範圍
-uv run python wedi_selenium_scraper.py --start-date 20241201 --end-date 20241208
+# 其他選項
+./run_payment.sh --headless  # 背景執行
+./run_payment.sh --start-date 20241201 --end-date 20241208  # 指定日期
 ```
 
-**Windows**：
-```cmd
-# 互動式執行（會提示輸入開始日期）
-run.cmd
+**手動執行**：
+```bash
+# macOS/Linux
+PYTHONPATH="$(pwd)" uv run python -u src/scrapers/payment_scraper.py
 
-# 無頭模式（背景執行）
-run.cmd --headless
-
-# 或直接使用 Python 指定日期範圍
-.venv\Scripts\python.exe wedi_selenium_scraper.py --start-date 20241201
+# Windows (命令提示字元)
+set PYTHONPATH=%cd%
+set PYTHONUNBUFFERED=1
+uv run python -u src\scrapers\payment_scraper.py
 ```
 
-### 自動執行流程
+### 運費查詢
 
-程式會自動執行以下步驟：
+**推薦使用方式 (跨平台腳本)**：
+```bash
+# macOS/Linux
+./run_freight.sh
 
-1. 📅 **互動式日期輸入** - 提示輸入開始日期，直接按 Enter 使用預設值（往前7天）
-2. 🔐 **自動登入系統** - 讀取 `accounts.json` 中的帳號資訊
+# Windows
+run_freight.cmd
+
+# 其他選項
+./run_freight.sh --headless  # 背景執行
+./run_freight.sh --start-month 202411 --end-month 202412  # 指定月份
+```
+
+**手動執行**：
+```bash
+# macOS/Linux
+PYTHONPATH="$(pwd)" uv run python -u src/scrapers/freight_scraper.py
+
+# Windows (命令提示字元)
+set PYTHONPATH=%cd%
+set PYTHONUNBUFFERED=1
+uv run python -u src\scrapers\freight_scraper.py
+```
+
+## 自動執行流程
+
+### 代收貨款查詢流程：
+1. 📅 **日期設定** - 支援互動式輸入或命令列參數，預設往前7天
+2. 🔐 **自動登入** - 讀取 `accounts.json` 中的帳號資訊
 3. 🧭 **智能導航** - 導航到代收貨款查詢頁面，處理複雜的 iframe 結構
-4. 📅 **設定日期範圍** - 使用輸入的日期或預設往前7天範圍
-5. 📊 **精準篩選** - 只搜尋「代收貨款匯款明細」，排除其他項目
-6. 📥 **自動下載** - 下載 Excel 檔案到 `downloads/` 目錄
-7. 📝 **智能重命名** - 檔案重命名為 `帳號_編號.xlsx` 格式
-8. 👥 **多帳號處理** - 依序處理所有啟用的帳號
-9. 📋 **生成報告** - 產生 JSON 格式的總結報告
+4. 📊 **精準篩選** - 只搜尋「代收貨款匯款明細」，排除其他項目
+5. 📥 **自動下載** - 下載 Excel 檔案到 `downloads/` 目錄
+6. 📝 **智能重命名** - 檔案重命名為 `帳號_編號.xlsx` 格式
+7. 👥 **多帳號處理** - 依序處理所有啟用的帳號
+8. 📋 **生成報告** - 產生詳細的執行報告
 
-## 驗證碼偵測策略
+### 運費查詢流程：
+1. 📅 **月份設定** - 支援月份範圍查詢（YYYYMM 格式），預設上個月
+2. 🔐 **自動登入** - 讀取帳號設定檔
+3. 🧭 **智能導航** - 導航到運費(月結)結帳資料查詢頁面
+4. 📊 **搜尋運費記錄** - 搜尋 (2-7) 運費相關的結帳資料
+5. 📥 **自動下載** - 下載 Excel 檔案
+6. 📝 **智能重命名** - 檔案重命名為 `帳號_freight_編號.xlsx` 格式
+7. 👥 **批次處理** - 處理所有啟用的帳號
+8. 📋 **總結報告** - 產生執行統計和結果報告
 
-腳本採用多層次驗證碼偵測方法：
+## 智能驗證碼偵測
+
+系統採用多層次驗證碼偵測策略：
 
 ### 🎯 方法1: 紅色字體偵測（主要方法）
 - 專門偵測頁面右側紅色字體的4碼英數字
@@ -172,28 +183,9 @@ run.cmd --headless
 - 掃描整個頁面的4碼英數字
 - 過濾年份等非驗證碼內容
 
-## 檔案命名格式
-
-下載的檔案會自動重命名為：
-- **格式**: `帳號_編號.xlsx`
-- **範例**: `5081794201_12345678.xlsx`
-- **覆蓋**: 重複執行會直接覆蓋同名檔案
-
-## 輸出結構
-
-```
-downloads/              # 下載的 Excel 檔案
-├── 5081794201_12345678.xlsx
-├── 5081794202_87654321.xlsx
-└── ...
-
-reports/               # 執行報告
-├── multi_account_report_20240912_132926.json
-└── ...
-
-logs/                 # 執行日誌
-temp/                 # 暫存檔案
-```
+### ⌛ 方法5: 手動輸入備案
+- 自動偵測失敗時，提供20秒手動輸入時間
+- 注意：背景模式（--headless）無法手動輸入
 
 ## 設定檔案
 
@@ -225,6 +217,44 @@ CHROME_BINARY_PATH="C:\Program Files\Google\Chrome\Application\chrome.exe"
 CHROME_BINARY_PATH="/usr/bin/google-chrome"
 ```
 
+## 輸出結構
+
+```
+downloads/              # 下載的 Excel 檔案
+├── 5081794201_12345678.xlsx          # 代收貨款明細
+├── 5081794201_freight_20241101.xlsx  # 運費記錄
+└── ...
+
+reports/               # 執行報告
+├── multi_account_report_20240912_132926.json
+└── ...
+
+logs/                 # 執行日誌
+temp/                 # 暫存檔案
+```
+
+## 現代化特色
+
+### 🏗️ 模組化架構
+- 採用 `src/` 目錄結構，符合現代 Python 專案標準
+- 根目錄保持整潔，不包含 Python 檔案
+- 清晰的模組分離：core（核心）、scrapers（實作）、utils（工具）
+
+### 📦 現代依賴管理
+- 使用 `pyproject.toml` + `uv.lock` 管理依賴
+- 快速且可重現的環境安裝
+- 自動版本鎖定，避免依賴衝突
+
+### 🖥️ Windows 完美相容
+- 實作 `safe_print()` 函數處理 Unicode 字符顯示
+- 所有 Unicode 字符（如 ✅ ❌ 🎉）自動轉換為純文字標籤
+- 在 Windows 命令提示字元中完美顯示中文和符號
+
+### 🚀 優化執行體驗
+- 提供跨平台執行腳本（.sh 和 .cmd）
+- 自動設定必要的環境變數
+- 簡化使用者執行流程
+
 ## 技術特色
 
 ### 智能導航系統
@@ -249,36 +279,42 @@ CHROME_BINARY_PATH="/usr/bin/google-chrome"
 **Q: Chrome 瀏覽器啟動失敗**
 A: 檢查 `.env` 檔案中的 `CHROME_BINARY_PATH` 是否正確
 
-**Q: Windows 顯示「找不到模組」錯誤**
-A: 虛擬環境未正確安裝，重新執行 `setup.cmd`
+**Q: Windows 顯示亂碼或符號異常**
+A: 程式已內建 Unicode 相容處理，會自動轉換為純文字顯示
 
-**Q: 設定檔案中 headless: true 但還是顯示瀏覽器**
-A: 使用 `./run.sh` 或 `run.cmd` 會正確讀取設定檔案中的 headless 設定
+**Q: 執行時顯示「模組找不到」**
+A: 確認是否使用了正確的執行腳本，會自動設定 PYTHONPATH
 
 **Q: 驗證碼偵測失敗**
 A: 程式會自動嘗試多種偵測方法，失敗時會等待手動輸入
 
-**Q: iframe 導航錯誤**
-A: 程式已優化 iframe 處理，如遇問題請檢查 logs 目錄
-
 **Q: 找不到代收貨款項目**
 A: 檢查帳號是否有代收貨款匯款明細的查詢權限，或該日期範圍是否有資料
 
-**Q: 只想處理特定帳號**
-A: 在 `accounts.json` 中將不需要的帳號設為 `"enabled": false`
+**Q: 想要背景執行但無法輸入驗證碼**
+A: 背景模式無法手動輸入驗證碼，建議先確認自動偵測功能正常
 
-**Q: 想要背景執行**
-A: 使用 `--headless` 參數或在 `accounts.json` 中設定 `"headless": true`
+**Q: 多帳號執行時中斷**
+A: 程式採用容錯設計，個別帳號失敗不會影響其他帳號處理
 
-**Q: 下載的檔案不是代收貨款匯款明細**
-A: 程式已設定精準過濾，只會下載包含「代收貨款」和「匯款明細」的項目
+### 🔍 調試工具
+
+如遇到驗證碼偵測問題，可使用內建調試工具：
+```bash
+# macOS/Linux
+PYTHONPATH="$(pwd)" python -u src/utils/debug_captcha.py
+
+# Windows
+set PYTHONPATH=%cd%
+python -u src\utils\debug_captcha.py
+```
 
 ## 依賴套件
 
-- `selenium` - 網頁自動化
-- `webdriver-manager` - Chrome WebDriver 管理
+- `selenium` - 網頁自動化框架
+- `webdriver-manager` - Chrome WebDriver 自動管理
 - `python-dotenv` - 環境變數管理
-- `beautifulsoup4` - HTML 解析
+- `beautifulsoup4` - HTML 解析工具
 - `openpyxl` - Excel 檔案處理
 - `requests` - HTTP 請求處理
 
@@ -286,9 +322,9 @@ A: 程式已設定精準過濾，只會下載包含「代收貨款」和「匯�
 
 ⚠️ **使用須知**:
 - 請確保有權限存取 WEDI 系統
-- 確認帳號有代收貨款匯款明細的查詢權限
-- 遵守網站的使用條款
+- 確認帳號有相應資料的查詢權限
+- 遵守網站的使用條款和服務協議
 - 適度使用，避免對伺服器造成過大負載
 - 定期檢查腳本是否因網站更新而需要調整
 
-📝 **法律聲明**: 此工具僅供學習和合法用途使用
+📝 **法律聲明**: 此工具僅供學習和合法用途使用，使用者需自行承擔使用責任。
