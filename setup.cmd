@@ -1,33 +1,35 @@
 @echo off
-echo Installing WEDI Scraper Tool - Windows Compatible Version...
+chcp 65001 > nul
+echo 🔧 安裝 WEDI 宅配通自動下載工具 - Windows 版本
+echo ================================================
 
-echo Step 1: Installing uv...
+echo 📦 步驟 1: 安裝 uv...
 pip install uv
 
-echo Step 2: Creating virtual environment...
+echo 🔧 步驟 2: 建立虛擬環境...
 uv venv
 
-echo Step 3: Installing dependencies...
+echo 📦 步驟 3: 安裝依賴套件...
 uv sync
 
-echo Step 4: Setting up Chrome path for Windows...
+echo 🌐 步驟 4: 設定 Chrome 路徑...
 if not exist ".env" (
     echo CHROME_BINARY_PATH="C:\Program Files\Google\Chrome\Application\chrome.exe" > .env
-    echo Chrome path set to default Windows location
-    echo Please edit .env file if your Chrome is installed elsewhere
+    echo ✅ Chrome 路徑已設定為預設 Windows 位置
+    echo 💡 如果您的 Chrome 安裝在其他位置，請編輯 .env 檔案
 )
 
-echo Step 5: Creating accounts.json example...
+echo 👤 步驟 5: 建立帳號設定範例...
 if not exist "accounts.json" (
     copy accounts.json.example accounts.json 2>nul
-    echo Please edit accounts.json to add your login credentials
+    echo ✅ 請編輯 accounts.json 檔案以新增您的登入憑證
 )
 
-echo Setup complete! 
+echo 🎉 安裝完成！
 echo.
-echo Next steps:
-echo 1. Edit accounts.json with your WEDI login credentials
-echo 2. Run the program: run.cmd
+echo 📋 後續步驟：
+echo 1. 編輯 accounts.json 檔案，新增您的 WEDI 登入憑證
+echo 2. 執行程式：run.cmd
 echo.
-echo If you encounter any issues, please check README.md
+echo 💡 如果遇到任何問題，請查看 README.md
 pause
