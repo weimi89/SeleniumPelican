@@ -11,6 +11,8 @@ import os
 import time
 import re
 import argparse
+import json
+import openpyxl
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -32,11 +34,11 @@ class PaymentScraper(BaseScraper):
     代收貨款查詢工具
     繼承 BaseScraper 實作代收貨款匯款明細查詢
     """
-    
+
     def __init__(self, username, password, headless=False, download_base_dir="downloads", start_date=None, end_date=None):
         # 調用父類構造函數
         super().__init__(username, password, headless, download_base_dir)
-        
+
         # 子類特有的屬性
         self.start_date = start_date
         self.end_date = end_date
@@ -552,9 +554,101 @@ class PaymentScraper(BaseScraper):
             safe_print(f"⚠️ 重新填入查詢條件失敗: {e}")
 
     def download_excel_for_payment(self, payment_no):
-        """為單個匯款記錄下載Excel檔案"""
+        """為單個匯款記錄下載Excel檔案 - 使用 data-fileblob 提取"""
         safe_print(f"📥 下載匯款編號 {payment_no} 的Excel檔案...")
 
+        try:
+            # 直接從頁面提取 data-fileblob 數據並生成 Excel
+            safe_print("🚀 嘗試從頁面提取 data-fileblob 數據...")
+            
+            # 尋找包含 data-fileblob 屬性的按鈕
+            fileblob_buttons = self.driver.find_elements(By.CSS_SELECTOR, "button[data-fileblob]")
+            
+            if fileblob_buttons:
+                fileblob_button = fileblob_buttons[0]
+                fileblob_data = fileblob_button.get_attribute("data-fileblob")
+                
+                if fileblob_data:
+                    try:
+                        # 解析 JSON 數據
+                        blob_json = json.loads(fileblob_data)
+                        data_array = blob_json.get("data", [])
+                        
+                        if data_array:
+                            # 使用 openpyxl 創建 Excel 檔案
+                            wb = openpyxl.Workbook()
+                            ws = wb.active
+                            ws.title = "代收貨款匯款明細"
+                            
+                            # 將數據寫入工作表
+                            for row_index, row_data in enumerate(data_array, 1):
+                                for col_index, cell_value in enumerate(row_data, 1):
+                                    # 清理 HTML 實體和空白字符
+                                    if isinstance(cell_value, str):
+                                        cell_value = cell_value.replace("&nbsp;", "").strip()
+                                    
+                                    cell = ws.cell(row=row_index, column=col_index, value=cell_value)
+                                    
+                                    # 設定標題行格式
+                                    if row_index == 1:
+                                        cell.font = openpyxl.styles.Font(bold=True)
+                            
+                            # 自動調整欄寬
+                            for column in ws.columns:
+                                max_length = 0
+                                column_letter = column[0].column_letter
+                                for cell in column:
+                                    try:
+                                        if cell.value:
+                                            max_length = max(max_length, len(str(cell.value)))
+                                    except:
+                                        pass
+                                adjusted_width = min(max_length + 2, 50)
+                                ws.column_dimensions[column_letter].width = adjusted_width
+                            
+                            # 生成檔案名稱
+                            new_name = f"{self.username}_{payment_no}.xlsx"
+                            new_path = self.download_dir / new_name
+                            
+                            # 如果目標檔案已存在，直接覆蓋
+                            if new_path.exists():
+                                safe_print(f"⚠️ 檔案已存在，將覆蓋: {new_name}")
+                                new_path.unlink()
+                            
+                            # 保存 Excel 檔案
+                            wb.save(new_path)
+                            safe_print(f"✅ 已生成 Excel 檔案: {new_name} (共 {len(data_array)} 行數據)")
+                            
+                            return True
+                            
+                        else:
+                            safe_print("❌ data-fileblob 中沒有找到數據陣列")
+                            return False
+                            
+                    except json.JSONDecodeError as json_e:
+                        safe_print(f"❌ 解析 data-fileblob JSON 失敗: {json_e}")
+                        safe_print(f"   原始數據前500字元: {fileblob_data[:500]}")
+                        return False
+                    
+                    except Exception as excel_e:
+                        safe_print(f"❌ 生成 Excel 檔案失敗: {excel_e}")
+                        return False
+                
+                else:
+                    safe_print("❌ data-fileblob 屬性為空")
+                    return False
+                    
+            else:
+                safe_print("⚠️ 未找到包含 data-fileblob 的元素，嘗試傳統下載方式...")
+                return self._fallback_download_excel(payment_no)
+                
+        except Exception as blob_e:
+            safe_print(f"❌ data-fileblob 提取失敗: {blob_e}")
+            safe_print("🔄 嘗試傳統下載方式...")
+            return self._fallback_download_excel(payment_no)
+
+    def _fallback_download_excel(self, payment_no):
+        """備用的傳統下載方式"""
         try:
             # 尋找並點擊匯出xlsx按鈕
             xlsx_selectors = [
@@ -625,7 +719,7 @@ class PaymentScraper(BaseScraper):
                 return False
 
         except Exception as e:
-            safe_print(f"⚠️ 下載匯款編號 {payment_no} 失敗: {e}")
+            safe_print(f"⚠️ 傳統下載方式失敗: {e}")
             return False
 
     def run_full_process(self):

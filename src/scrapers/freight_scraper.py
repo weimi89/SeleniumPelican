@@ -11,6 +11,9 @@ import os
 import time
 import re
 import argparse
+import requests
+import json
+import openpyxl
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -32,19 +35,19 @@ class FreightScraper(BaseScraper):
     WEDI 運費查詢工具
     繼承 BaseScraper 實作運費(月結)結帳資料查詢
     """
-    
+
     def __init__(self, username, password, headless=False, download_base_dir="downloads", start_month=None, end_month=None):
         # 調用父類構造函數
         super().__init__(username, password, headless, download_base_dir)
-        
+
         # 子類特有的屬性
         self.start_month = start_month
         self.end_month = end_month
-        
+
         # 轉換月份為日期格式供日期操作使用
         self.start_date = None
         self.end_date = None
-        
+
         if start_month:
             try:
                 year = int(start_month[:4])
@@ -91,21 +94,7 @@ class FreightScraper(BaseScraper):
         safe_print("🧭 導航至運費查詢頁面...")
 
         try:
-            # 等待主選單載入
-            time.sleep(3)
-
-            # 切換到datamain iframe（與wedi_selenium_scraper.py相同的邏輯）
-            try:
-                iframe = self.wait.until(
-                    EC.presence_of_element_located((By.NAME, "datamain"))
-                )
-                self.driver.switch_to.frame(iframe)
-                safe_print("✅ 已切換到 datamain iframe")
-            except Exception as e:
-                safe_print(f"❌ 無法切換到 datamain iframe: {e}")
-                return False
-
-            # 查找運費相關選項
+            # 已經在 datamain iframe 中（由 BaseScraper.navigate_to_query() 切換），直接進行操作
             time.sleep(2)
 
             # 搜尋所有連結，找出運費相關項目
@@ -225,63 +214,130 @@ class FreightScraper(BaseScraper):
             # 此時已經在datamain iframe中，直接搜尋數據
             safe_print("🔍 分析當前頁面內容...")
 
-            # 搜尋所有連結，找出運費相關項目
-            all_links = self.driver.find_elements(By.TAG_NAME, "a")
-            print(f"   找到 {len(all_links)} 個連結")
+            # 先搜尋表格中的發票數據（運費查詢結果為表格格式）
+            tables = self.driver.find_elements(By.TAG_NAME, "table")
+            safe_print(f"   找到 {len(tables)} 個表格")
 
-            # 定義運費相關關鍵字
-            freight_keywords = [
-                "運費", "月結", "結帳", "(2-7)"
-            ]
-
-            # 定義排除關鍵字
-            excluded_keywords = [
-                "語音取件", "三節加價", "系統公告", "操作說明", "維護通知",
-                "Home", "首頁", "登出", "系統設定"
-            ]
-
-            for i, link in enumerate(all_links):
+            for table_index, table in enumerate(tables):
                 try:
-                    link_text = link.text.strip()
-                    if link_text:
-                        # 檢查是否需要排除
-                        should_exclude = any(keyword in link_text for keyword in excluded_keywords)
+                    rows = table.find_elements(By.TAG_NAME, "tr")
+                    safe_print(f"   表格 {table_index + 1} 有 {len(rows)} 行")
+                    
+                    # 詳細分析每一行的內容
+                    for row_index, row in enumerate(rows):
+                        try:
+                            cells = row.find_elements(By.TAG_NAME, "td")
+                            th_cells = row.find_elements(By.TAG_NAME, "th")
+                            total_cells = len(cells) + len(th_cells)
+                            
+                            if total_cells > 0:
+                                safe_print(f"   行 {row_index + 1}: {len(cells)} 個 td, {len(th_cells)} 個 th")
+                                
+                                # 檢查每個欄位的內容
+                                all_cells = cells if cells else th_cells
+                                for cell_index, cell in enumerate(all_cells):
+                                    cell_text = cell.text.strip()
+                                    if cell_text:
+                                        safe_print(f"     欄位 {cell_index + 1}: '{cell_text}'")
+                                        
+                                        # 檢查這個欄位是否包含發票號碼（英數字組合，長度 > 8）
+                                        if (len(cell_text) > 8 and 
+                                            any(c.isdigit() for c in cell_text) and 
+                                            any(c.isalpha() for c in cell_text) and
+                                            cell_text not in ["發票號碼", "小計", "總計"]):
+                                            
+                                            safe_print(f"     🔍 可能的發票號碼: '{cell_text}'")
+                                            
+                                            # 檢查是否有可點擊的連結
+                                            invoice_link = None
+                                            try:
+                                                # 嘗試在該欄位中尋找連結
+                                                invoice_link = cell.find_element(By.TAG_NAME, "a")
+                                                safe_print(f"     ✅ 在欄位中找到連結")
+                                            except:
+                                                # 如果該欄位沒有連結，嘗試整行是否可點擊
+                                                try:
+                                                    invoice_link = row.find_element(By.TAG_NAME, "a")
+                                                    safe_print(f"     ✅ 在整行中找到連結")
+                                                except:
+                                                    # 如果沒有連結，使用整個 cell 作為點擊目標
+                                                    invoice_link = cell
+                                                    safe_print(f"     ⚠️ 沒有連結，使用欄位本身")
 
-                        # 匹配運費相關項目
-                        is_freight_record = (("運費" in link_text and "月結" in link_text) or
-                                           ("結帳資料" in link_text and "運費" in link_text) or
-                                           "(2-7)" in link_text)
-
-                        if is_freight_record and not should_exclude:
-                            # 生成檔案ID
-                            file_id = link_text.replace(" ", "_").replace("[", "").replace("]", "").replace("-", "_")
-                            records.append({
-                                "index": i + 1,
-                                "title": link_text,
-                                "record_id": file_id,
-                                "link": link
-                            })
-                            safe_print(f"   ✅ 找到運費記錄: {link_text}")
-                        elif should_exclude:
-                            safe_print(f"   ⏭️ 跳過排除項目: {link_text}")
-                        elif "運費" in link_text:
-                            safe_print(f"   ⏭️ 跳過非目標運費項目: {link_text}")
-                except:
+                                            if invoice_link:
+                                                # 嘗試獲取發票日期（通常在前一個或後一個欄位）
+                                                invoice_date = ""
+                                                try:
+                                                    # 檢查前後欄位是否有日期格式（8位數字）
+                                                    for check_index in [cell_index - 1, cell_index + 1]:
+                                                        if 0 <= check_index < len(all_cells):
+                                                            check_text = all_cells[check_index].text.strip()
+                                                            if len(check_text) == 8 and check_text.isdigit():
+                                                                invoice_date = check_text
+                                                                break
+                                                except:
+                                                    pass
+                                                
+                                                records.append({
+                                                    "index": len(records) + 1,
+                                                    "title": f"發票號碼: {cell_text}",
+                                                    "invoice_no": cell_text,
+                                                    "invoice_date": invoice_date,
+                                                    "record_id": f"{invoice_date}_{cell_text}" if invoice_date else cell_text,
+                                                    "link": invoice_link
+                                                })
+                                                safe_print(f"   ✅ 找到發票記錄: {cell_text} (日期: {invoice_date})")
+                                                
+                        except Exception as row_e:
+                            safe_print(f"   ⚠️ 處理行 {row_index + 1} 時出錯: {row_e}")
+                            continue
+                            
+                except Exception as table_e:
+                    safe_print(f"   ⚠️ 處理表格 {table_index + 1} 時出錯: {table_e}")
                     continue
 
-            # 如果沒有找到任何運費連結，嘗試搜尋表格數據
+            # 如果表格中沒有找到發票數據，嘗試搜尋連結
             if not records:
-                safe_print("🔍 未找到運費連結，搜尋表格數據...")
-                tables = self.driver.find_elements(By.TAG_NAME, "table")
+                safe_print("🔍 表格中未找到發票數據，搜尋連結...")
+                all_links = self.driver.find_elements(By.TAG_NAME, "a")
+                safe_print(f"   找到 {len(all_links)} 個連結")
 
-                for table in tables:
-                    rows = table.find_elements(By.TAG_NAME, "tr")
-                    for row in rows:
-                        cells = row.find_elements(By.TAG_NAME, "td")
-                        for cell in cells:
-                            cell_text = cell.text.strip()
-                            if any(keyword in cell_text for keyword in freight_keywords):
-                                safe_print(f"   📋 找到表格中的運費數據: {cell_text}")
+                # 定義運費相關關鍵字
+                freight_keywords = ["運費", "月結", "結帳", "(2-7)", "發票"]
+
+                # 定義排除關鍵字
+                excluded_keywords = [
+                    "語音取件", "三節加價", "系統公告", "操作說明", "維護通知",
+                    "Home", "首頁", "登出", "系統設定"
+                ]
+
+                for i, link in enumerate(all_links):
+                    try:
+                        link_text = link.text.strip()
+                        if link_text:
+                            # 檢查是否需要排除
+                            should_exclude = any(keyword in link_text for keyword in excluded_keywords)
+
+                            # 匹配運費相關項目或發票號碼格式
+                            is_freight_record = (("運費" in link_text and "月結" in link_text) or
+                                               ("結帳資料" in link_text and "運費" in link_text) or
+                                               "(2-7)" in link_text or
+                                               (len(link_text) > 8 and any(c.isdigit() for c in link_text) and any(c.isalpha() for c in link_text)))
+
+                            if is_freight_record and not should_exclude:
+                                # 生成檔案ID
+                                file_id = link_text.replace(" ", "_").replace("[", "").replace("]", "").replace("-", "_")
+                                records.append({
+                                    "index": i + 1,
+                                    "title": link_text,
+                                    "record_id": file_id,
+                                    "link": link
+                                })
+                                safe_print(f"   ✅ 找到運費記錄: {link_text}")
+                            elif should_exclude:
+                                safe_print(f"   ⏭️ 跳過排除項目: {link_text}")
+                    except:
+                        continue
 
             safe_print(f"📊 總共找到 {len(records)} 筆運費相關記錄")
             return records
@@ -291,18 +347,47 @@ class FreightScraper(BaseScraper):
             return records
 
     def download_excel_for_record(self, record):
-        """為特定運費記錄下載Excel檔案 - 簡化版本（沒有複雜的多視窗邏輯）"""
+        """為特定運費記錄下載Excel檔案 - 修正stale element問題"""
         safe_print(f"📥 下載記錄 {record['record_id']} 的Excel檔案...")
 
         try:
-            # 點擊記錄連結
-            found_link = record['link']
+            # 重新搜尋發票連結（避免 stale element reference）
+            invoice_no = record['invoice_no']
+            safe_print(f"🔍 重新搜尋發票號碼 {invoice_no} 的連結...")
+            
+            found_link = None
+            # 方法1：直接用發票號碼搜尋連結
+            try:
+                found_link = self.driver.find_element(By.XPATH, f"//a[contains(text(), '{invoice_no}')]")
+                safe_print("✅ 通過文字內容找到連結")
+            except:
+                # 方法2：通過 href 屬性搜尋
+                try:
+                    found_link = self.driver.find_element(By.XPATH, f"//a[contains(@href, '{invoice_no}')]")
+                    safe_print("✅ 通過href屬性找到連結")
+                except:
+                    # 方法3：重新搜尋表格中的連結
+                    try:
+                        tables = self.driver.find_elements(By.TAG_NAME, "table")
+                        for table in tables:
+                            links = table.find_elements(By.TAG_NAME, "a")
+                            for link in links:
+                                if invoice_no in link.text:
+                                    found_link = link
+                                    safe_print("✅ 在表格中重新找到連結")
+                                    break
+                            if found_link:
+                                break
+                    except Exception as e:
+                        safe_print(f"⚠️ 重新搜尋連結失敗: {e}")
+
             if found_link:
                 # 使用JavaScript點擊避免元素遮蔽問題
                 self.driver.execute_script("arguments[0].click();", found_link)
+                safe_print(f"✅ 已點擊發票號碼 {invoice_no} 的連結")
                 time.sleep(5)
             else:
-                raise Exception(f"找不到連結")
+                raise Exception(f"重新搜尋後仍找不到發票號碼 {invoice_no} 的連結")
 
             downloaded_files = []
             record_id = record['record_id']
@@ -350,60 +435,119 @@ class FreightScraper(BaseScraper):
             except Exception as date_e:
                 safe_print(f"⚠️ 填入查詢月份失敗: {date_e}")
 
-            # 尋找並點擊匯出xlsx按鈕（與wedi_selenium_scraper.py相同的邏輯）
+            # 直接從頁面提取 data-fileblob 數據並生成 Excel
             try:
-                xlsx_selectors = [
-                    "//button[contains(text(), '匯出xlsx')]",
-                    "//input[@value*='匯出xlsx']",
-                    "//a[contains(text(), '匯出xlsx')]",
-                    "//button[contains(text(), 'Excel')]",
-                    "//input[@value*='Excel']",
-                    "//form//input[@type='submit'][contains(@value, '匯出')]"
-                ]
-
-                xlsx_button = None
-                for selector in xlsx_selectors:
-                    try:
-                        xlsx_button = self.wait.until(
-                            EC.element_to_be_clickable((By.XPATH, selector))
-                        )
-                        break
-                    except:
-                        continue
-
-                if xlsx_button:
-                    # 獲取下載前的檔案列表
-                    before_files = set(self.download_dir.glob("*"))
-
-                    # 使用JavaScript點擊避免元素遮蔽問題
-                    self.driver.execute_script("arguments[0].click();", xlsx_button)
-                    safe_print(f"✅ 已點擊匯出xlsx按鈕")
-                    time.sleep(5)
-
-                    # 獲取新下載的檔案
-                    after_files = set(self.download_dir.glob("*"))
-                    new_files = after_files - before_files
-
-                    # 重命名新下載的檔案
-                    for new_file in new_files:
-                        if new_file.suffix.lower() in ['.xlsx', '.xls']:
-                            new_name = f"{self.username}_{record_id}{new_file.suffix}"
-                            new_path = self.download_dir / new_name
+                safe_print("🚀 嘗試從頁面提取 data-fileblob 數據...")
+                
+                # 尋找包含 data-fileblob 屬性的按鈕
+                fileblob_buttons = self.driver.find_elements(By.CSS_SELECTOR, "button[data-fileblob]")
+                
+                if not fileblob_buttons:
+                    # 如果找不到，嘗試其他可能的選擇器
+                    fileblob_buttons = self.driver.find_elements(By.XPATH, "//*[@data-fileblob]")
+                
+                if fileblob_buttons:
+                    safe_print(f"✅ 找到 {len(fileblob_buttons)} 個包含 data-fileblob 的元素")
+                    
+                    # 通常第一個就是我們要的匯出按鈕
+                    fileblob_button = fileblob_buttons[0]
+                    fileblob_data = fileblob_button.get_attribute("data-fileblob")
+                    
+                    if fileblob_data:
+                        safe_print("✅ 成功獲取 data-fileblob 數據")
+                        
+                        try:
+                            # 解析 JSON 數據
+                            blob_json = json.loads(fileblob_data)
+                            data_array = blob_json.get("data", [])
+                            filename_base = blob_json.get("fileName", "Excel")
+                            mime_type = blob_json.get("mimeType", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            file_extension = blob_json.get("fileExtension", ".xlsx")
                             
-                            # 如果目標檔案已存在，直接覆蓋
-                            if new_path.exists():
-                                new_path.unlink()
+                            safe_print(f"📊 數據信息:")
+                            safe_print(f"   檔名: {filename_base}{file_extension}")
+                            safe_print(f"   MIME類型: {mime_type}")
+                            safe_print(f"   數據行數: {len(data_array)}")
                             
-                            new_file.rename(new_path)
-                            downloaded_files.append(str(new_path))
-                            safe_print(f"✅ 已重命名為: {new_name}")
+                            if data_array:
+                                # 使用 openpyxl 創建 Excel 檔案
+                                wb = openpyxl.Workbook()
+                                ws = wb.active
+                                ws.title = "運費明細"
+                                
+                                # 將數據寫入工作表
+                                for row_index, row_data in enumerate(data_array, 1):
+                                    for col_index, cell_value in enumerate(row_data, 1):
+                                        # 清理數據（移除HTML空格等）
+                                        if isinstance(cell_value, str):
+                                            cell_value = cell_value.replace("&nbsp;", "").strip()
+                                        
+                                        ws.cell(row=row_index, column=col_index, value=cell_value)
+                                
+                                # 設定表頭樣式
+                                if len(data_array) > 0:
+                                    from openpyxl.styles import Font, PatternFill, Border, Side
+                                    
+                                    # 表頭加粗
+                                    for col_index in range(1, len(data_array[0]) + 1):
+                                        cell = ws.cell(row=1, column=col_index)
+                                        cell.font = Font(bold=True)
+                                        cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+                                
+                                # 自動調整欄寬
+                                for column in ws.columns:
+                                    max_length = 0
+                                    column_letter = column[0].column_letter
+                                    for cell in column:
+                                        try:
+                                            if len(str(cell.value)) > max_length:
+                                                max_length = len(str(cell.value))
+                                        except:
+                                            pass
+                                    adjusted_width = min(max_length + 2, 50)  # 最大寬度限制
+                                    ws.column_dimensions[column_letter].width = adjusted_width
+                                
+                                # 生成檔案名稱
+                                invoice_no = record.get('invoice_no', record_id)
+                                invoice_date = record.get('invoice_date', '')
+                                if invoice_date:
+                                    filename = f"{self.username}_{invoice_date}_{invoice_no}.xlsx"
+                                else:
+                                    filename = f"{self.username}_{invoice_no}.xlsx"
+                                
+                                # 保存檔案
+                                file_path = self.download_dir / filename
+                                wb.save(file_path)
+                                wb.close()
+                                
+                                downloaded_files = [str(file_path)]
+                                safe_print(f"✅ 成功從 data-fileblob 生成 Excel: {filename}")
+                                safe_print(f"📁 檔案大小: {file_path.stat().st_size:,} bytes")
+                                safe_print(f"📋 數據行數: {len(data_array)} 行，欄數: {len(data_array[0]) if data_array else 0} 欄")
+                                
+                                return downloaded_files
+                            
+                            else:
+                                safe_print("❌ data-fileblob 中沒有找到數據陣列")
+                                
+                        except json.JSONDecodeError as json_e:
+                            safe_print(f"❌ 解析 data-fileblob JSON 失敗: {json_e}")
+                            safe_print(f"   原始數據前500字元: {fileblob_data[:500]}")
+                        
+                        except Exception as excel_e:
+                            safe_print(f"❌ 生成 Excel 檔案失敗: {excel_e}")
+                    
+                    else:
+                        safe_print("❌ data-fileblob 屬性為空")
+                        
                 else:
-                    raise Exception("找不到xlsx匯出按鈕")
-
-            except Exception as e:
-                safe_print(f"⚠️ xlsx下載失敗: {e}")
-
-            return downloaded_files
+                    safe_print("⚠️ 未找到包含 data-fileblob 的元素")
+                    raise Exception("未找到 data-fileblob 元素")
+                    
+            except Exception as blob_e:
+                safe_print(f"❌ data-fileblob 提取失敗: {blob_e}")
+                safe_print("🔄 程式無法提取數據，請檢查頁面是否正確載入")
+                return []
 
         except Exception as e:
             safe_print(f"❌ 下載記錄失敗: {e}")
@@ -520,10 +664,10 @@ def main():
         else:
             prev_month = today.month - 1
             prev_year = today.year
-        
+
         start_month = f"{prev_year:04d}{prev_month:02d}"
         end_month = start_month  # 預設查詢單一月份
-        
+
         safe_print(f"📅 查詢月份範圍: {start_month} ~ {end_month} (預設上個月)")
     elif not end_month:
         end_month = start_month  # 如果只指定開始月份，結束月份使用相同值
