@@ -47,16 +47,18 @@ class MultiAccountManager:
         """取得啟用的帳號列表"""
         return [acc for acc in self.config["accounts"] if acc.get("enabled", True)]
 
-    def run_all_accounts(self, scraper_class, headless_override=None, progress_callback=None, start_date=None, end_date=None):
+    def run_all_accounts(self, scraper_class, headless_override=None, progress_callback=None, start_date=None, end_date=None, start_month=None, end_month=None):
         """
         執行所有啟用的帳號
 
         Args:
-            scraper_class: 要使用的抓取器類別 (例如 SeleniumScraper)
+            scraper_class: 要使用的抓取器類別 (例如 PaymentScraper, FreightScraper)
             headless_override: 覆寫無頭模式設定
             progress_callback: 進度回呼函數
-            start_date: 開始日期
-            end_date: 結束日期
+            start_date: 開始日期 (用於代收貨款查詢)
+            end_date: 結束日期 (用於代收貨款查詢)
+            start_month: 開始月份 (用於運費查詢)
+            end_month: 結束月份 (用於運費查詢)
         """
         accounts = self.get_enabled_accounts()
 
@@ -85,14 +87,29 @@ class MultiAccountManager:
                 # 如果有命令列參數覆寫，則使用該設定
                 use_headless = headless_override if headless_override is not None else settings.get("headless", False)
 
-                scraper = scraper_class(
-                    username=username,
-                    password=password,
-                    headless=use_headless,
-                    download_base_dir=settings.get("download_base_dir", "downloads"),
-                    start_date=start_date,
-                    end_date=end_date
-                )
+                # 準備 scraper 參數，根據不同類型傳遞適當的日期/月份參數
+                scraper_kwargs = {
+                    "username": username,
+                    "password": password,
+                    "headless": use_headless,
+                    "download_base_dir": settings.get("download_base_dir", "downloads")
+                }
+
+                # 檢查 scraper 類別名稱來決定傳遞哪種日期參數
+                if "Freight" in scraper_class.__name__:
+                    # FreightScraper 使用 start_month 和 end_month
+                    if start_month is not None:
+                        scraper_kwargs["start_month"] = start_month
+                    if end_month is not None:
+                        scraper_kwargs["end_month"] = end_month
+                else:
+                    # PaymentScraper 和其他使用 start_date 和 end_date
+                    if start_date is not None:
+                        scraper_kwargs["start_date"] = start_date
+                    if end_date is not None:
+                        scraper_kwargs["end_date"] = end_date
+
+                scraper = scraper_class(**scraper_kwargs)
 
                 result = scraper.run_full_process()
                 results.append(result)
