@@ -1,19 +1,19 @@
 @echo off
-chcp 65001 > nul
-echo 📦 WEDI 宅配通自動下載工具
-echo ======================================
+set "SCRIPT=%~dp0run_payment.ps1"
 
-REM 執行共用檢查
-call "%~dp0scripts\common_checks.cmd" check_environment
+rem 優先用 Windows Terminal
+where wt >nul 2>&1
+if %errorlevel%==0 (
+  wt -w 0 -p "PowerShell" "pwsh" -NoExit -ExecutionPolicy Bypass -File "%SCRIPT%" %*
+  exit /b
+)
 
-REM 直接執行代收貨款查詢功能
-echo 💰 啟動代收貨款查詢功能
-echo.
+rem 如果沒裝 Windows Terminal，直接用 pwsh
+where pwsh >nul 2>&1
+if %errorlevel%==0 (
+  start "" pwsh -NoExit -ExecutionPolicy Bypass -File "%SCRIPT%" %*
+  exit /b
+)
 
-REM 直接執行新的代收貨款查詢程式，讓它處理所有互動
-set PYTHONPATH=%cd% && uv run python -u src/scrapers/payment_scraper.py %* 2>&1 | findstr /v "DevTools listening"
-
-REM 檢查執行結果
-call "%~dp0scripts\common_checks.cmd" check_execution_result
-
-pause
+rem 備援舊版 PowerShell
+start "" powershell -NoExit -ExecutionPolicy Bypass -File "%SCRIPT%" %*
