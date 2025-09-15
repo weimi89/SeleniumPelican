@@ -31,11 +31,62 @@ try {
     # 設定 PYTHONPATH 並執行 Python 程式
     $env:PYTHONPATH = $PWD.Path
     
-    # 執行新的代收貨款查詢程式，讓它處理所有互動
-    Write-Host "🚀 執行命令: uv run python -u src/scrapers/payment_scraper.py $args" -ForegroundColor Blue
+    # 詢問使用者是否要自訂日期範圍（如果沒有命令列參數）
+    $finalArgs = @()
+    if ($args.Count -eq 0 -or (-not ($args -contains "--start-date") -and -not ($args -contains "--end-date"))) {
+        # 計算預設日期範圍
+        $today = Get-Date -Format "yyyyMMdd"
+        $sevenDaysAgo = (Get-Date).AddDays(-7).ToString("yyyyMMdd")
+        
+        Write-Host ""
+        Write-Host "📅 日期範圍設定" -ForegroundColor Yellow
+        Write-Host "預設查詢範圍：$sevenDaysAgo ~ $today (往前7天到今天)"
+        Write-Host ""
+        
+        $customDate = Read-Host "是否要自訂日期範圍？(y/N)"
+        
+        if ($customDate -eq 'y' -or $customDate -eq 'Y') {
+            Write-Host ""
+            $startDateStr = Read-Host "請輸入開始日期 (格式: YYYYMMDD，例如: 20241201)"
+            $endDateStr = Read-Host "請輸入結束日期 (格式: YYYYMMDD，例如: 20241208，或按 Enter 使用今天)"
+            
+            if ($startDateStr -and $startDateStr -match '^\d{8}$') {
+                $finalArgs += "--start-date"
+                $finalArgs += $startDateStr
+            }
+            
+            if ($endDateStr -and $endDateStr -match '^\d{8}$') {
+                $finalArgs += "--end-date"
+                $finalArgs += $endDateStr
+            }
+            
+            Write-Host ""
+            if ($finalArgs.Count -gt 0) {
+                Write-Host "✅ 將使用自訂日期範圍" -ForegroundColor Green
+            } else {
+                Write-Host "⚠️ 未設定有效日期，將使用預設範圍" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "✅ 使用預設日期範圍：$sevenDaysAgo ~ $today" -ForegroundColor Green
+        }
+        
+        # 合併原有參數和新參數
+        $finalArgs += $args
+    } else {
+        $finalArgs = $args
+    }
     
-    # 直接使用 uv 執行，不重定向輸出以保持互動性
-    & uv run python -u src/scrapers/payment_scraper.py @args
+    # 顯示執行命令
+    $commandStr = "uv run python -u src/scrapers/payment_scraper.py"
+    if ($finalArgs.Count -gt 0) {
+        $commandStr += " " + ($finalArgs -join " ")
+    }
+    Write-Host ""
+    Write-Host "🚀 執行命令: $commandStr" -ForegroundColor Blue
+    Write-Host ""
+    
+    # 執行 Python 程式
+    & uv run python -u src/scrapers/payment_scraper.py @finalArgs
     
     # 檢查執行結果
     Test-ExecutionResult -ExitCode $LASTEXITCODE
