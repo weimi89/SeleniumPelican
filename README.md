@@ -31,8 +31,8 @@ SeleniumPelican/
 │   └── utils/                    # 工具模組
 │       ├── windows_encoding_utils.py  # Windows 相容性工具
 │       └── debug_captcha.py      # 驗證碼調試工具
-├── run_payment.sh/.cmd           # 代收貨款執行腳本
-├── run_freight.sh/.cmd           # 運費查詢執行腳本
+├── run_payment.sh/.cmd/.ps1      # 代收貨款執行腳本
+├── run_freight.sh/.cmd/.ps1      # 運費查詢執行腳本
 ├── accounts.json                 # 帳號設定檔
 ├── pyproject.toml               # Python 專案設定
 └── uv.lock                      # 鎖定依賴版本
@@ -50,8 +50,11 @@ chmod +x setup.sh && ./setup.sh
 
 **Windows**：
 ```cmd
-# 雙擊執行或在命令提示字元中執行
+# 雙擊執行或在命令提示字元中執行（自動啟動 PowerShell 7）
 setup.cmd
+
+# 或直接執行 PowerShell 7 腳本
+setup.ps1
 ```
 
 安裝腳本會自動：
@@ -96,12 +99,16 @@ cp .env.example .env
 # macOS/Linux
 ./run_payment.sh
 
-# Windows
+# Windows（自動啟動 PowerShell 7）
 run_payment.cmd
+
+# 或直接使用 PowerShell 7 腳本
+run_payment.ps1
 
 # 其他選項
 ./run_payment.sh --headless  # 背景執行
 ./run_payment.sh --start-date 20241201 --end-date 20241208  # 指定日期
+run_payment.cmd --start-date 20241201 --end-date 20241208  # Windows 指定日期
 ```
 
 **手動執行**：
@@ -122,8 +129,11 @@ uv run python -u src\scrapers\payment_scraper.py
 # macOS/Linux
 ./run_freight.sh
 
-# Windows
+# Windows（自動啟動 PowerShell 7）
 run_freight.cmd
+
+# 或直接使用 PowerShell 7 腳本
+run_freight.ps1
 
 # 其他選項
 ./run_freight.sh --headless  # 背景執行
@@ -190,7 +200,10 @@ uv run python -u src\scrapers\freight_scraper.py
 ## 設定檔案
 
 ### accounts.json
-設定要處理的帳號清單：
+設定要處理的帳號清單（⚠️ 此檔案不會被 Git 追蹤）：
+
+> **安全提醒**：請參考 `accounts.json.example` 建立此檔案，切勿將真實密碼提交到版本控制系統。
+
 ```json
 {
   "accounts": [
@@ -203,6 +216,11 @@ uv run python -u src\scrapers\freight_scraper.py
   }
 }
 ```
+
+**重要設定說明**：
+- `enabled: true/false` - 控制要處理哪些帳號
+- `headless: true/false` - 是否使用背景模式（無法手動輸入驗證碼）
+- 已加入 `.gitignore`，不會意外提交敏感資訊
 
 ### .env
 設定 Chrome 瀏覽器路徑：
@@ -221,8 +239,8 @@ CHROME_BINARY_PATH="/usr/bin/google-chrome"
 
 ```
 downloads/              # 下載的 Excel 檔案
-├── 5081794201_12345678.xlsx          # 代收貨款明細
-├── 5081794201_freight_20241101.xlsx  # 運費記錄
+├── 0000000001_12345678.xlsx          # 代收貨款明細
+├── 0000000001_freight_20241101.xlsx  # 運費記錄
 └── ...
 
 reports/               # 執行報告
@@ -251,7 +269,8 @@ temp/                 # 暫存檔案
 - 在 Windows 命令提示字元中完美顯示中文和符號
 
 ### 🚀 優化執行體驗
-- 提供跨平台執行腳本（.sh 和 .cmd）
+- 提供跨平台執行腳本（.sh、.cmd、.ps1）
+- Windows 自動啟動 PowerShell 7，享受完整 UTF-8 支援和彩色輸出
 - 自動設定必要的環境變數
 - 簡化使用者執行流程
 
@@ -326,5 +345,12 @@ python -u src\utils\debug_captcha.py
 - 遵守網站的使用條款和服務協議
 - 適度使用，避免對伺服器造成過大負載
 - 定期檢查腳本是否因網站更新而需要調整
+
+🔒 **安全提醒**:
+- `accounts.json` 已加入 `.gitignore`，不會被版本控制追蹤
+- 請定期更改密碼，確保帳號安全
+- 切勿在公開場所或文件中暴露真實密碼
+- 建議使用強密碼並啟用雙因素認證（如果支援）
+- 如發現密碼洩露，請立即更改所有相關帳號密碼
 
 📝 **法律聲明**: 此工具僅供學習和合法用途使用，使用者需自行承擔使用責任。
