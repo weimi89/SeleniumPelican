@@ -4,7 +4,7 @@
 
 ## 專案概述
 
-這是一個 WEDI (宅配通) 自動化工具套件，使用 Selenium 自動從 WEDI 網頁系統下載各種資料。支援代收貨款匯款明細查詢和運費(月結)結帳資料查詢。該工具採用現代化的模組化架構，使用抽象基礎類別設計，易於擴展新功能。
+這是一個 WEDI (宅配通) 自動化工具套件，使用 Selenium 自動從 WEDI 網頁系統下載各種資料。支援代收貨款匯款明細查詢、運費(月結)結帳資料查詢，以及運費未請款明細下載。該工具採用現代化的模組化架構，使用抽象基礎類別設計，易於擴展新功能。
 
 ## 專案結構
 
@@ -17,12 +17,14 @@ SeleniumPelican/
 │   │   └── browser_utils.py      # 瀏覽器初始化工具
 │   ├── scrapers/                 # 具體實作的爬蟲
 │   │   ├── payment_scraper.py    # 代收貨款查詢工具
-│   │   └── freight_scraper.py    # 運費查詢工具
+│   │   ├── freight_scraper.py    # 運費查詢工具
+│   │   └── unpaid_freight_scraper.py  # 運費未請款明細工具
 │   └── utils/                    # 工具模組
 │       ├── windows_encoding_utils.py  # Windows 相容性工具
 │       └── debug_captcha.py      # 驗證碼調試工具
 ├── run_payment.sh/.cmd/.ps1      # 代收貨款執行腳本
 ├── run_freight.sh/.cmd/.ps1      # 運費查詢執行腳本
+├── run_unpaid_freight.sh/.cmd/.ps1  # 運費未請款明細執行腳本
 ├── accounts.json                 # 帳號設定檔
 ├── pyproject.toml               # Python 專案設定
 └── uv.lock                      # 鎖定依賴版本
@@ -62,24 +64,40 @@ SeleniumPelican/
 
 ### 爬蟲實作 (src/scrapers/)
 
-1. **PaymentScraper** (`src/scrapers/payment_scraper.py`): 代收貨款查詢工具
-   - 繼承 BaseScraper 實作代收貨款匯款明細查詢
-   - 支援日期範圍查詢（YYYYMMDD 格式）
-   - 預設查詢範圍為往前7天
-   - 精準過濾「代收貨款匯款明細」項目，排除「已收未結帳」類型
-   - 使用 MultiAccountManager 進行多帳號處理
+本專案包含三個專門的爬蟲工具，各自針對不同的 WEDI 功能進行優化：
 
-2. **FreightScraper** (`src/scrapers/freight_scraper.py`): 運費查詢工具
-   - 繼承 BaseScraper 實作運費(月結)結帳資料查詢
-   - 支援月份範圍查詢（YYYYMM 格式）
-   - 預設查詢月份為上個月
-   - 搜尋 (2-7) 運費(月結)結帳資料相關項目
-   - 月份參數自動轉換為完整日期範圍
+1. **PaymentScraper** (`src/scrapers/payment_scraper.py`): 代收貨款查詢工具
+   - **功能**: 下載代收貨款匯款明細
+   - **繼承**: BaseScraper 實作代收貨款匯款明細查詢
+   - **日期格式**: 支援日期範圍查詢（YYYYMMDD 格式）
+   - **預設範圍**: 往前7天
+   - **過濾機制**: 精準過濾「代收貨款匯款明細」項目，排除「已收未結帳」類型
+   - **檔案命名**: `{帳號}_{payment_no}.xlsx`
+   - **下載方式**: 點擊連結下載 Excel 檔案
+
+2. **FreightScraper** (`src/scrapers/freight_scraper.py`): 運費(月結)結帳資料查詢工具
+   - **功能**: 下載運費(月結)結帳資料
+   - **繼承**: BaseScraper 實作運費(月結)結帳資料查詢
+   - **日期格式**: 支援月份範圍查詢（YYYYMM 格式）
+   - **預設範圍**: 上個月
+   - **搜尋目標**: (2-7) 運費(月結)結帳資料相關項目
+   - **檔案命名**: `{帳號}_freight_{record_id}.xlsx`
+   - **下載方式**: 使用 data-fileblob 提取數據生成 Excel
+
+3. **UnpaidFreightScraper** (`src/scrapers/unpaid_freight_scraper.py`): 運費未請款明細工具
+   - **功能**: 下載運費未請款明細
+   - **繼承**: BaseScraper 實作運費未請款明細查詢
+   - **日期格式**: 預設結束時間為當日，無需使用者輸入
+   - **搜尋目標**: 運費未請款相關頁面
+   - **檔案命名**: `{帳號}_FREIGHT_{結束時間}.xlsx`
+   - **下載方式**: 直接抓取HTML表格並使用 BeautifulSoup 解析轉換為Excel檔案
+   - **特色**: 無需點擊下載連結，直接從網頁表格提取數據
 
 ### 關鍵技術細節
 
 - **iframe 導航**: 工具在 WEDI 系統的巢狀 iframe 中導航。所有操作都在 `datamain` iframe 內維持上下文，避免切換衝突。
 - **過濾邏輯**: 只下載同時包含「代收貨款」和「匯款明細」關鍵字的項目，排除如「代收款已收未結帳明細」等項目。
+- **HTML表格解析**: 運費未請款明細工具使用 BeautifulSoup 直接解析網頁表格，無需下載檔案再處理。
 - **跨平台 Chrome 支援**: 使用 `.env` 檔案設定 Chrome 在 macOS、Windows 和 Linux 系統的執行檔路徑。
 - **日期範圍彈性**: 支援命令列日期參數（`--start-date`、`--end-date`），預設為當日。
 - **現代 Python 管理**: 使用 uv 進行快速依賴管理和虛擬環境處理。
@@ -174,6 +192,29 @@ run_freight.cmd --headless
 ./run_freight.sh --headless
 ```
 
+#### 運費未請款明細下載
+
+**Windows 使用者：**
+```cmd
+# 使用 Windows 批次檔（自動啟動 PowerShell 7）
+run_unpaid_freight.cmd
+
+# 或直接使用 PowerShell 7 腳本
+run_unpaid_freight.ps1
+
+# 無頭模式
+run_unpaid_freight.cmd --headless
+```
+
+**Linux/macOS 使用者：**
+```bash
+# 使用 shell 腳本執行
+./run_unpaid_freight.sh
+
+# 無頭模式
+./run_unpaid_freight.sh --headless
+```
+
 **手動執行（需要先設定環境變數）：**
 ```bash
 # 代收貨款查詢
@@ -182,9 +223,14 @@ PYTHONPATH="$(pwd)" uv run python -u src/scrapers/payment_scraper.py
 # 運費查詢
 PYTHONPATH="$(pwd)" uv run python -u src/scrapers/freight_scraper.py
 
+# 運費未請款明細下載
+PYTHONPATH="$(pwd)" uv run python -u src/scrapers/unpaid_freight_scraper.py
+
 # Windows 使用者設定：
 # set PYTHONPATH=%cd%
 # uv run python -u src\scrapers\payment_scraper.py
+# uv run python -u src\scrapers\freight_scraper.py
+# uv run python -u src\scrapers\unpaid_freight_scraper.py
 ```
 
 ### 設定檔案
@@ -213,6 +259,7 @@ PYTHONPATH="$(pwd)" uv run python -u src/scrapers/freight_scraper.py
 - **downloads/**: 按帳號下載的 Excel 檔案
   - 代收貨款：`{username}_{payment_no}.xlsx`
   - 運費資料：`{username}_freight_{record_id}.xlsx`
+  - 運費未請款明細：`{username}_FREIGHT_{end_date}.xlsx`
 - **reports/**: 個別帳號執行報告（目前版本已停用）
 - **logs/**: 執行日誌和除錯資訊
 - **temp/**: 暫存處理檔案
