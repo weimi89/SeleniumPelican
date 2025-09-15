@@ -36,10 +36,42 @@ SeleniumPelican/
 ├── run_payment.sh/.cmd/.ps1      # 代收貨款執行腳本
 ├── run_freight.sh/.cmd/.ps1      # 運費查詢執行腳本
 ├── run_unpaid_freight.sh/.cmd/.ps1  # 運費未請款明細執行腳本
+├── update.sh/.cmd/.ps1          # 自動更新腳本
 ├── accounts.json                 # 帳號設定檔
 ├── pyproject.toml               # Python 專案設定
 └── uv.lock                      # 鎖定依賴版本
 ```
+
+## 自動更新 🔄
+
+保持工具為最新版本，享受最新功能和錯誤修復：
+
+### 一鍵更新 ⚡
+
+**Linux/macOS**：
+```bash
+./update.sh
+```
+
+**Windows**：
+```cmd
+# 雙擊執行或在命令提示字元中執行（自動啟動 PowerShell 7）
+update.cmd
+
+# 或直接執行 PowerShell 7 腳本
+update.ps1
+```
+
+### 更新功能特色
+
+✅ **智能檢查** - 自動檢查是否有新版本可用  
+💾 **安全更新** - 自動暫存未提交的變更，避免資料遺失  
+📦 **依賴同步** - 檢測到 pyproject.toml 變更時自動更新套件  
+🔄 **變更還原** - 更新完成後自動還原之前的變更  
+🛡️ **衝突處理** - 遇到合併衝突時提供清楚的處理指引  
+🌐 **網路檢查** - 更新前驗證網路連線和 Git 權限  
+
+> **小提示**: 定期執行更新以獲得最佳體驗和最新功能！
 
 ## 快速開始 🚀
 

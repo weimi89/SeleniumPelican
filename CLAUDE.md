@@ -25,6 +25,7 @@ SeleniumPelican/
 ├── run_payment.sh/.cmd/.ps1      # 代收貨款執行腳本
 ├── run_freight.sh/.cmd/.ps1      # 運費查詢執行腳本
 ├── run_unpaid_freight.sh/.cmd/.ps1  # 運費未請款明細執行腳本
+├── update.sh/.cmd/.ps1          # 自動更新腳本
 ├── accounts.json                 # 帳號設定檔
 ├── pyproject.toml               # Python 專案設定
 └── uv.lock                      # 鎖定依賴版本
@@ -103,6 +104,26 @@ SeleniumPelican/
 - **現代 Python 管理**: 使用 uv 進行快速依賴管理和虛擬環境處理。
 
 ## 開發指令
+
+### 自動更新
+```bash
+# Linux/macOS
+./update.sh
+
+# Windows（自動啟動 PowerShell 7）
+update.cmd
+
+# 或直接使用 PowerShell 7 腳本
+update.ps1
+```
+
+**自動更新功能**：
+- 🔍 自動檢查遠端更新
+- 💾 自動暫存未提交的變更
+- ⬇️ 執行 git pull 更新
+- 📦 自動更新依賴套件（如果 pyproject.toml 有變更）
+- 🔄 自動還原之前暫存的變更
+- 🛡️ 安全機制：遇到衝突會提示手動處理
 
 ### 設定和安裝
 ```bash
