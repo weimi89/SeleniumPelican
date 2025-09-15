@@ -1,6 +1,6 @@
 # WEDI 宅配通自動下載工具 📦
 
-一個使用 Python + Selenium 建立的現代化自動化工具套件，專門用於自動登入 WEDI（宅配通）系統並下載各種資料。支援代收貨款匯款明細和運費(月結)結帳資料查詢。
+一個使用 Python + Selenium 建立的現代化自動化工具套件，專門用於自動登入 WEDI（宅配通）系統並下載各種資料。支援代收貨款匯款明細、運費(月結)結帳資料查詢，以及運費未請款明細下載。
 
 ## 功能特色
 
@@ -8,6 +8,7 @@
 🤖 **智能驗證碼偵測**: 多層次自動偵測右側4碼英數字驗證碼
 💰 **代收貨款查詢**: 下載代收貨款匯款明細 Excel 檔案
 🚛 **運費查詢**: 下載運費(月結)結帳資料 Excel 檔案
+📊 **運費未請款明細**: 直接抓取表格並轉換為 Excel 檔案
 👥 **多帳號支援**: 批次處理多個帳號，自動產生總結報告
 📅 **彈性日期**: 支援不同的日期格式（YYYYMMDD 或 YYYYMM）
 📝 **智能檔案命名**: 檔案自動命名為 `帳號_編號.xlsx` 格式
@@ -27,12 +28,14 @@ SeleniumPelican/
 │   │   └── browser_utils.py      # 瀏覽器初始化工具
 │   ├── scrapers/                 # 具體實作的爬蟲
 │   │   ├── payment_scraper.py    # 代收貨款查詢工具
-│   │   └── freight_scraper.py    # 運費查詢工具
+│   │   ├── freight_scraper.py    # 運費查詢工具
+│   │   └── unpaid_freight_scraper.py  # 運費未請款明細工具
 │   └── utils/                    # 工具模組
 │       ├── windows_encoding_utils.py  # Windows 相容性工具
 │       └── debug_captcha.py      # 驗證碼調試工具
 ├── run_payment.sh/.cmd/.ps1      # 代收貨款執行腳本
 ├── run_freight.sh/.cmd/.ps1      # 運費查詢執行腳本
+├── run_unpaid_freight.sh/.cmd/.ps1  # 運費未請款明細執行腳本
 ├── accounts.json                 # 帳號設定檔
 ├── pyproject.toml               # Python 專案設定
 └── uv.lock                      # 鎖定依賴版本
@@ -151,6 +154,34 @@ set PYTHONUNBUFFERED=1
 uv run python -u src\scrapers\freight_scraper.py
 ```
 
+### 運費未請款明細
+
+**推薦使用方式 (跨平台腳本)**：
+```bash
+# macOS/Linux
+./run_unpaid_freight.sh
+
+# Windows（自動啟動 PowerShell 7）
+run_unpaid_freight.cmd
+
+# 或直接使用 PowerShell 7 腳本
+run_unpaid_freight.ps1
+
+# 其他選項
+./run_unpaid_freight.sh --headless  # 背景執行
+```
+
+**手動執行**：
+```bash
+# macOS/Linux
+PYTHONPATH="$(pwd)" uv run python -u src/scrapers/unpaid_freight_scraper.py
+
+# Windows (命令提示字元)
+set PYTHONPATH=%cd%
+set PYTHONUNBUFFERED=1
+uv run python -u src\scrapers\unpaid_freight_scraper.py
+```
+
 ## 自動執行流程
 
 ### 代收貨款查詢流程：
@@ -170,6 +201,16 @@ uv run python -u src\scrapers\freight_scraper.py
 4. 📊 **搜尋運費記錄** - 搜尋 (2-7) 運費相關的結帳資料
 5. 📥 **自動下載** - 下載 Excel 檔案
 6. 📝 **智能重命名** - 檔案重命名為 `帳號_freight_編號.xlsx` 格式
+7. 👥 **批次處理** - 處理所有啟用的帳號
+8. 📋 **總結報告** - 產生執行統計和結果報告
+
+### 運費未請款明細流程：
+1. 📅 **自動設定日期** - 預設結束時間為當日，無需使用者輸入
+2. 🔐 **自動登入** - 讀取帳號設定檔
+3. 🧭 **智能導航** - 導航到運費未請款明細頁面
+4. 📊 **直接抓取表格** - 使用 BeautifulSoup 解析 HTML 表格數據
+5. 📥 **生成 Excel** - 直接從表格數據創建 Excel 檔案
+6. 📝 **智能重命名** - 檔案重命名為 `帳號_FREIGHT_日期.xlsx` 格式
 7. 👥 **批次處理** - 處理所有啟用的帳號
 8. 📋 **總結報告** - 產生執行統計和結果報告
 
@@ -241,6 +282,7 @@ CHROME_BINARY_PATH="/usr/bin/google-chrome"
 downloads/              # 下載的 Excel 檔案
 ├── 0000000001_12345678.xlsx          # 代收貨款明細
 ├── 0000000001_freight_20241101.xlsx  # 運費記錄
+├── 0000000001_FREIGHT_20241215.xlsx  # 運費未請款明細
 └── ...
 
 reports/               # 執行報告
