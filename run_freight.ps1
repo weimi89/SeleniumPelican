@@ -31,11 +31,61 @@ try {
     # 設定 PYTHONPATH
     $env:PYTHONPATH = $PWD.Path
     
-    # 執行運費查詢程式
-    Write-Host "🚀 執行命令: uv run python -u src/scrapers/freight_scraper.py $args" -ForegroundColor Blue
+    # 詢問使用者是否要自訂月份範圍（如果沒有命令列參數）
+    $finalArgs = @()
+    if ($args.Count -eq 0 -or (-not ($args -contains "--start-month") -and -not ($args -contains "--end-month"))) {
+        # 計算預設月份範圍
+        $lastMonth = (Get-Date).AddMonths(-1).ToString("yyyyMM")
+        
+        Write-Host ""
+        Write-Host "📅 查詢月份設定" -ForegroundColor Yellow
+        Write-Host "預設查詢範圍：$lastMonth (上個月)"
+        Write-Host ""
+        
+        $customMonth = Read-Host "是否要自訂月份範圍？(y/N)"
+        
+        if ($customMonth -eq 'y' -or $customMonth -eq 'Y') {
+            Write-Host ""
+            $startMonthStr = Read-Host "請輸入開始月份 (格式: YYYYMM，例如: 202411)"
+            $endMonthStr = Read-Host "請輸入結束月份 (格式: YYYYMM，例如: 202412，或按 Enter 使用本月)"
+            
+            if ($startMonthStr -and $startMonthStr -match '^\d{6}$') {
+                $finalArgs += "--start-month"
+                $finalArgs += $startMonthStr
+            }
+            
+            if ($endMonthStr -and $endMonthStr -match '^\d{6}$') {
+                $finalArgs += "--end-month"
+                $finalArgs += $endMonthStr
+            }
+            
+            Write-Host ""
+            if ($finalArgs.Count -gt 0) {
+                Write-Host "✅ 將使用自訂月份範圍" -ForegroundColor Green
+            } else {
+                Write-Host "⚠️ 未設定有效月份，將使用預設範圍" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "✅ 使用預設月份範圍：$lastMonth (上個月)" -ForegroundColor Green
+        }
+        
+        # 合併原有參數和新參數
+        $finalArgs += $args
+    } else {
+        $finalArgs = $args
+    }
     
-    # 直接使用 uv 執行，保持互動性
-    & uv run python -u src/scrapers/freight_scraper.py @args
+    # 顯示執行命令
+    $commandStr = "uv run python -u src/scrapers/freight_scraper.py"
+    if ($finalArgs.Count -gt 0) {
+        $commandStr += " " + ($finalArgs -join " ")
+    }
+    Write-Host ""
+    Write-Host "🚀 執行命令: $commandStr" -ForegroundColor Blue
+    Write-Host ""
+    
+    # 執行 Python 程式
+    & uv run python -u src/scrapers/freight_scraper.py @finalArgs
     
     # 檢查執行結果
     Test-ExecutionResult -ExitCode $LASTEXITCODE
