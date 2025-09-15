@@ -32,11 +32,13 @@ try {
     $env:PYTHONPATH = $PWD.Path
     
     # 執行新的代收貨款查詢程式，讓它處理所有互動
-    # 過濾掉 DevTools listening 訊息
-    $process = Start-Process -FilePath "uv" -ArgumentList @("run", "python", "-u", "src/scrapers/payment_scraper.py") + $args -NoNewWindow -Wait -PassThru -RedirectStandardError
+    Write-Host "🚀 執行命令: uv run python -u src/scrapers/payment_scraper.py $args" -ForegroundColor Blue
+    
+    # 直接使用 uv 執行，不重定向輸出以保持互動性
+    & uv run python -u src/scrapers/payment_scraper.py @args
     
     # 檢查執行結果
-    Test-ExecutionResult -ExitCode $process.ExitCode
+    Test-ExecutionResult -ExitCode $LASTEXITCODE
     
 } catch {
     Write-Host "❌ 執行過程中發生錯誤：$($_.Exception.Message)" -ForegroundColor Red

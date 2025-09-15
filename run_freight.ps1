@@ -31,11 +31,14 @@ try {
     # 設定 PYTHONPATH
     $env:PYTHONPATH = $PWD.Path
     
-    # 使用 uv 執行 Python 程式，過濾掉 DevTools listening 訊息
-    $process = Start-Process -FilePath "uv" -ArgumentList @("run", "python", "-u", "src/scrapers/freight_scraper.py") + $args -NoNewWindow -Wait -PassThru -RedirectStandardError
+    # 執行運費查詢程式
+    Write-Host "🚀 執行命令: uv run python -u src/scrapers/freight_scraper.py $args" -ForegroundColor Blue
+    
+    # 直接使用 uv 執行，保持互動性
+    & uv run python -u src/scrapers/freight_scraper.py @args
     
     # 檢查執行結果
-    Test-ExecutionResult -ExitCode $process.ExitCode
+    Test-ExecutionResult -ExitCode $LASTEXITCODE
     
 } catch {
     Write-Host "❌ 執行過程中發生錯誤：$($_.Exception.Message)" -ForegroundColor Red
