@@ -194,8 +194,8 @@ uv run python -u src\scrapers\freight_scraper.py
 ```json
 {
   "accounts": [
-    {"username": "5081794201", "password": "your_password", "enabled": true},
-    {"username": "5081794202", "password": "your_password", "enabled": false}
+    {"username": "0000000001", "password": "your_password", "enabled": true},
+    {"username": "0000000002", "password": "your_password", "enabled": false}
   ],
   "settings": {
     "headless": false,
