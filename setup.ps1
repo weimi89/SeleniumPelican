@@ -4,8 +4,13 @@
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
+# 確保在正確的專案目錄
+$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location $scriptPath
+
 Write-Host "🔧 安裝 WEDI 宅配通自動下載工具 - PowerShell 版本" -ForegroundColor Cyan
 Write-Host "================================================" -ForegroundColor Cyan
+Write-Host "🔍 專案路徑: $scriptPath" -ForegroundColor Blue
 Write-Host ""
 
 try {

@@ -3,6 +3,10 @@
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
+# 確保在正確的專案目錄
+$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location $scriptPath
+
 Write-Host "🚛 WEDI 運費查詢自動下載工具" -ForegroundColor Cyan
 Write-Host "===============================" -ForegroundColor Cyan
 Write-Host ""

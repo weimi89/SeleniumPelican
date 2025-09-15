@@ -2,6 +2,16 @@
 # 此腳本包含所有執行腳本需要的共用檢查邏輯
 
 function Test-Environment {
+    Write-Host "🔍 專案路徑: $(Get-Location)" -ForegroundColor Blue
+    
+    # 檢查是否在正確的專案目錄（應該有 pyproject.toml）
+    if (-not (Test-Path "pyproject.toml")) {
+        Write-Host "❌ 找不到 pyproject.toml，請確認您在正確的專案目錄" -ForegroundColor Red
+        Write-Host "目前路徑: $(Get-Location)" -ForegroundColor Yellow
+        Read-Host "按 Enter 鍵繼續..."
+        exit 1
+    }
+
     # 檢查 uv 是否安裝
     try {
         $null = uv --version
@@ -28,6 +38,17 @@ function Test-Environment {
     if (-not (Test-Path "accounts.json")) {
         Write-Host "❌ 找不到 accounts.json 設定檔案" -ForegroundColor Red
         Write-Host "請參考 accounts.json.example 建立設定檔案" -ForegroundColor Yellow
+        
+        # 如果有 example 檔案，詢問是否自動建立
+        if (Test-Path "accounts.json.example") {
+            $response = Read-Host "是否要複製 accounts.json.example 為 accounts.json？(y/N)"
+            if ($response -eq 'y' -or $response -eq 'Y') {
+                Copy-Item "accounts.json.example" "accounts.json"
+                Write-Host "✅ 已建立 accounts.json，請編輯此檔案添加您的登入憑證" -ForegroundColor Green
+                return
+            }
+        }
+        
         Read-Host "按 Enter 鍵繼續..."
         exit 1
     }
