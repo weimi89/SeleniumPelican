@@ -21,8 +21,8 @@ SeleniumPelican/
 │   └── utils/                    # 工具模組
 │       ├── windows_encoding_utils.py  # Windows 相容性工具
 │       └── debug_captcha.py      # 驗證碼調試工具
-├── run_payment.sh/.cmd           # 代收貨款執行腳本
-├── run_freight.sh/.cmd           # 運費查詢執行腳本
+├── run_payment.sh/.cmd/.ps1      # 代收貨款執行腳本
+├── run_freight.sh/.cmd/.ps1      # 運費查詢執行腳本
 ├── accounts.json                 # 帳號設定檔
 ├── pyproject.toml               # Python 專案設定
 └── uv.lock                      # 鎖定依賴版本
@@ -120,8 +120,11 @@ export PYTHONUNBUFFERED=1
 
 **Windows 使用者（推薦）：**
 ```cmd
-# 使用 Windows 批次檔（推薦，已自動設定環境變數）
+# 使用 Windows 批次檔（自動啟動 PowerShell 7）
 run_payment.cmd
+
+# 或直接使用 PowerShell 7 腳本
+run_payment.ps1
 
 # 使用日期參數
 run_payment.cmd --start-date 20241201 --end-date 20241208
@@ -146,8 +149,11 @@ run_payment.cmd --headless
 
 **Windows 使用者：**
 ```cmd
-# 使用 Windows 批次檔
+# 使用 Windows 批次檔（自動啟動 PowerShell 7）
 run_freight.cmd
+
+# 或直接使用 PowerShell 7 腳本
+run_freight.ps1
 
 # 使用月份參數
 run_freight.cmd --start-month 202411 --end-month 202412
@@ -184,14 +190,23 @@ PYTHONPATH="$(pwd)" uv run python -u src/scrapers/freight_scraper.py
 ### 設定檔案
 
 - **pyproject.toml**: 現代 Python 專案設定，包含依賴和 uv 設定
-- **accounts.json**: 包含帳號憑證和設定
+- **accounts.json**: 包含帳號憑證和設定（⚠️ 不會被 Git 追蹤）
   - `enabled: true/false` 控制要處理哪些帳號
   - `settings.headless` 和 `settings.download_base_dir` 為全域設定
+  - **重要**：請參考 `accounts.json.example` 建立此檔案
+  - **安全提醒**：切勿將真實密碼提交到 Git
 
 - **.env**: Chrome 執行檔路徑設定（從 `.env.example` 建立）
   ```
   CHROME_BINARY_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
   ```
+
+### 安全注意事項
+
+- `accounts.json` 已加入 `.gitignore`，不會被 Git 追蹤
+- 請定期更改密碼，確保帳號安全
+- 切勿在公開場所或文件中暴露真實密碼
+- 建議使用強密碼並啟用雙因素認證（如果支援）
 
 ## 輸出結構
 
@@ -267,6 +282,9 @@ PYTHONPATH="$(pwd)" python -u src/utils/debug_captcha.py
 - 確保在 Windows 命令提示字元中正常顯示
 
 **執行腳本優化**：
-- 提供跨平台執行腳本（.sh 和 .cmd）
+- 提供跨平台執行腳本（.sh、.cmd、.ps1）
+- .cmd 檔案自動啟動 PowerShell 7，享受最佳體驗
+- 智慧執行順序：Windows Terminal > PowerShell 7 > 舊版 PowerShell
+- 完整 UTF-8 支援和彩色輸出
 - 自動設定必要的環境變數（PYTHONUNBUFFERED、PYTHONPATH）
 - 簡化使用者執行流程
