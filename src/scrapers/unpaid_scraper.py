@@ -31,7 +31,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 
-class UnpaidFreightScraper(BaseScraper):
+class UnpaidScraper(BaseScraper):
     """
     WEDI 運費未請款明細下載工具
     繼承 BaseScraper 實作運費未請款明細查詢
@@ -327,7 +327,7 @@ def main():
 
         manager = MultiAccountManager("accounts.json")
         manager.run_all_accounts(
-            scraper_class=UnpaidFreightScraper,
+            scraper_class=UnpaidScraper,
             headless_override=args.headless if args.headless else None
         )
 

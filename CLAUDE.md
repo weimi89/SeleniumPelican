@@ -18,13 +18,12 @@ SeleniumPelican/
 │   ├── scrapers/                 # 具體實作的爬蟲
 │   │   ├── payment_scraper.py    # 代收貨款查詢工具
 │   │   ├── freight_scraper.py    # 運費查詢工具
-│   │   └── unpaid_freight_scraper.py  # 運費未請款明細工具
+│   │   └── unpaid_scraper.py     # 運費未請款明細工具
 │   └── utils/                    # 工具模組
-│       ├── windows_encoding_utils.py  # Windows 相容性工具
-│       └── debug_captcha.py      # 驗證碼調試工具
+│       └── windows_encoding_utils.py  # Windows 相容性工具
 ├── run_payment.sh/.cmd/.ps1      # 代收貨款執行腳本
 ├── run_freight.sh/.cmd/.ps1      # 運費查詢執行腳本
-├── run_unpaid_freight.sh/.cmd/.ps1  # 運費未請款明細執行腳本
+├── run_unpaid.sh/.cmd/.ps1        # 運費未請款明細執行腳本
 ├── update.sh/.cmd/.ps1          # 自動更新腳本
 ├── accounts.json                 # 帳號設定檔
 ├── pyproject.toml               # Python 專案設定
@@ -59,10 +58,6 @@ SeleniumPelican/
    - 支援跨平台 Unicode 字符顯示
    - 自動檢查和提醒 PYTHONUNBUFFERED 環境變數設定
 
-2. **debug_captcha.py**: 驗證碼調試工具
-   - 用於調試驗證碼偵測邏輯
-   - 提供多種驗證碼偵測方法測試
-
 ### 爬蟲實作 (src/scrapers/)
 
 本專案包含三個專門的爬蟲工具，各自針對不同的 WEDI 功能進行優化：
@@ -85,7 +80,7 @@ SeleniumPelican/
    - **檔案命名**: `{帳號}_freight_{record_id}.xlsx`
    - **下載方式**: 使用 data-fileblob 提取數據生成 Excel
 
-3. **UnpaidFreightScraper** (`src/scrapers/unpaid_freight_scraper.py`): 運費未請款明細工具
+3. **UnpaidScraper** (`src/scrapers/unpaid_scraper.py`): 運費未請款明細工具
    - **功能**: 下載運費未請款明細
    - **繼承**: BaseScraper 實作運費未請款明細查詢
    - **日期格式**: 預設結束時間為當日，無需使用者輸入
@@ -218,22 +213,22 @@ run_freight.cmd --headless
 **Windows 使用者：**
 ```cmd
 # 使用 Windows 批次檔（自動啟動 PowerShell 7）
-run_unpaid_freight.cmd
+run_unpaid.cmd
 
 # 或直接使用 PowerShell 7 腳本
-run_unpaid_freight.ps1
+run_unpaid.ps1
 
 # 無頭模式
-run_unpaid_freight.cmd --headless
+run_unpaid.cmd --headless
 ```
 
 **Linux/macOS 使用者：**
 ```bash
 # 使用 shell 腳本執行
-./run_unpaid_freight.sh
+./run_unpaid.sh
 
 # 無頭模式
-./run_unpaid_freight.sh --headless
+./run_unpaid.sh --headless
 ```
 
 **手動執行（需要先設定環境變數）：**
@@ -245,13 +240,13 @@ PYTHONPATH="$(pwd)" uv run python -u src/scrapers/payment_scraper.py
 PYTHONPATH="$(pwd)" uv run python -u src/scrapers/freight_scraper.py
 
 # 運費未請款明細下載
-PYTHONPATH="$(pwd)" uv run python -u src/scrapers/unpaid_freight_scraper.py
+PYTHONPATH="$(pwd)" uv run python -u src/scrapers/unpaid_scraper.py
 
 # Windows 使用者設定：
 # set PYTHONPATH=%cd%
 # uv run python -u src\scrapers\payment_scraper.py
 # uv run python -u src\scrapers\freight_scraper.py
-# uv run python -u src\scrapers\unpaid_freight_scraper.py
+# uv run python -u src\scrapers\unpaid_scraper.py
 ```
 
 ### 設定檔案
@@ -301,15 +296,6 @@ PYTHONPATH="$(pwd)" uv run python -u src/scrapers/unpaid_freight_scraper.py
 - 登入失敗會自動重試最多3次
 - 每次重試會重新載入頁面和重新偵測驗證碼
 
-**調試工具**：
-```bash
-# Windows
-set PYTHONPATH=%cd%
-python -u src\utils\debug_captcha.py
-
-# Linux/macOS  
-PYTHONPATH="$(pwd)" python -u src/utils/debug_captcha.py
-```
 
 ### iframe 管理
 工具在整個過程中維持 iframe 上下文以避免 Chrome 崩潰：

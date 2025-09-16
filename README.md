@@ -29,13 +29,12 @@ SeleniumPelican/
 │   ├── scrapers/                 # 具體實作的爬蟲
 │   │   ├── payment_scraper.py    # 代收貨款查詢工具
 │   │   ├── freight_scraper.py    # 運費查詢工具
-│   │   └── unpaid_freight_scraper.py  # 運費未請款明細工具
+│   │   └── unpaid_scraper.py     # 運費未請款明細工具
 │   └── utils/                    # 工具模組
-│       ├── windows_encoding_utils.py  # Windows 相容性工具
-│       └── debug_captcha.py      # 驗證碼調試工具
+│       └── windows_encoding_utils.py  # Windows 相容性工具
 ├── run_payment.sh/.cmd/.ps1      # 代收貨款執行腳本
 ├── run_freight.sh/.cmd/.ps1      # 運費查詢執行腳本
-├── run_unpaid_freight.sh/.cmd/.ps1  # 運費未請款明細執行腳本
+├── run_unpaid.sh/.cmd/.ps1        # 運費未請款明細執行腳本
 ├── update.sh/.cmd/.ps1          # 自動更新腳本
 ├── accounts.json                 # 帳號設定檔
 ├── pyproject.toml               # Python 專案設定
@@ -64,14 +63,61 @@ update.ps1
 
 ### 更新功能特色
 
-✅ **智能檢查** - 自動檢查是否有新版本可用  
-💾 **安全更新** - 自動暫存未提交的變更，避免資料遺失  
-📦 **依賴同步** - 檢測到 pyproject.toml 變更時自動更新套件  
-🔄 **變更還原** - 更新完成後自動還原之前的變更  
-🛡️ **衝突處理** - 遇到合併衝突時提供清楚的處理指引  
-🌐 **網路檢查** - 更新前驗證網路連線和 Git 權限  
+✅ **智能檢查** - 自動檢查是否有新版本可用
+💾 **安全更新** - 自動暫存未提交的變更，避免資料遺失
+📦 **依賴同步** - 檢測到 pyproject.toml 變更時自動更新套件
+🔄 **變更還原** - 更新完成後自動還原之前的變更
+🛡️ **衝突處理** - 遇到合併衝突時提供清楚的處理指引
+🌐 **網路檢查** - 更新前驗證網路連線和 Git 權限
 
 > **小提示**: 定期執行更新以獲得最佳體驗和最新功能！
+
+## Windows 建議安裝 💻
+
+為了獲得最佳的 Windows 使用體驗，建議安裝以下工具：
+
+### Windows Terminal
+1. 開啟 Microsoft Store
+   • 在開始選單搜尋「Microsoft Store」
+   • 搜尋 Windows Terminal
+   • 或直接點這裡：[Windows Terminal 下載](https://www.microsoft.com/store/productId/9N0DX20HK701)
+2. 點「取得」→ 安裝完成後打開。
+
+### 安裝 PowerShell 7
+PowerShell 7 的彩色支援比舊版 PowerShell / CMD 完整許多，而且相容性很好。
+
+在 PowerShell (舊版) 或 CMD 輸入：
+```cmd
+winget install --id Microsoft.Powershell --source winget
+```
+
+安裝完成後，在 Windows Terminal 裡會自動多一個 Profile 叫「PowerShell 7」。
+
+### 🎨 設定 Windows Terminal 預設 Profile
+1. 打開 Windows Terminal
+2. 按 Ctrl + , 開啟設定
+3. 在「啟動」→「預設設定檔」改成 PowerShell 7（或你想要的 Git Bash / WSL）
+4. 按下儲存，之後每次開 Terminal 都用新的 Shell。
+
+### Git 安裝
+本專案使用 Git 進行版本控制和自動更新功能，請確保已安裝 Git：
+
+**方法一：使用 winget（推薦）**
+```cmd
+winget install --id Git.Git -e --source winget
+```
+
+**方法二：官網下載**
+- 前往 [Git 官網](https://git-scm.com/download/win) 下載安裝程式
+- 執行安裝程式，建議保持預設設定
+- 安裝完成後重新啟動命令提示字元或 PowerShell
+
+**驗證安裝**：
+```cmd
+git --version
+```
+
+> **小提示**：安裝 Git 時會一併安裝 Git Bash，這是一個優秀的 Unix-like 命令列環境，也可以在 Windows Terminal 中使用。
 
 ## 快速開始 🚀
 
@@ -191,27 +237,27 @@ uv run python -u src\scrapers\freight_scraper.py
 **推薦使用方式 (跨平台腳本)**：
 ```bash
 # macOS/Linux
-./run_unpaid_freight.sh
+./run_unpaid.sh
 
 # Windows（自動啟動 PowerShell 7）
-run_unpaid_freight.cmd
+run_unpaid.cmd
 
 # 或直接使用 PowerShell 7 腳本
-run_unpaid_freight.ps1
+run_unpaid.ps1
 
 # 其他選項
-./run_unpaid_freight.sh --headless  # 背景執行
+./run_unpaid.sh --headless  # 背景執行
 ```
 
 **手動執行**：
 ```bash
 # macOS/Linux
-PYTHONPATH="$(pwd)" uv run python -u src/scrapers/unpaid_freight_scraper.py
+PYTHONPATH="$(pwd)" uv run python -u src/scrapers/unpaid_scraper.py
 
 # Windows (命令提示字元)
 set PYTHONPATH=%cd%
 set PYTHONUNBUFFERED=1
-uv run python -u src\scrapers\unpaid_freight_scraper.py
+uv run python -u src\scrapers\unpaid_scraper.py
 ```
 
 ## 自動執行流程
@@ -318,7 +364,7 @@ downloads/              # 下載的 Excel 檔案
 └── ...
 
 reports/               # 執行報告
-├── multi_account_report_20240912_132926.json
+├── 20240912_132926.json
 └── ...
 
 logs/                 # 執行日誌
@@ -390,17 +436,6 @@ A: 背景模式無法手動輸入驗證碼，建議先確認自動偵測功能�
 **Q: 多帳號執行時中斷**
 A: 程式採用容錯設計，個別帳號失敗不會影響其他帳號處理
 
-### 🔍 調試工具
-
-如遇到驗證碼偵測問題，可使用內建調試工具：
-```bash
-# macOS/Linux
-PYTHONPATH="$(pwd)" python -u src/utils/debug_captcha.py
-
-# Windows
-set PYTHONPATH=%cd%
-python -u src\utils\debug_captcha.py
-```
 
 ## 依賴套件
 

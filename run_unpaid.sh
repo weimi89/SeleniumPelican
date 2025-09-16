@@ -12,7 +12,7 @@ echo "📅 結束時間: $(date +%Y%m%d) (當日)"
 echo ""
 
 # 執行程式
-uv run python -u src/scrapers/unpaid_freight_scraper.py "$@"
+uv run python -u src/scrapers/unpaid_scraper.py "$@"
 
 echo ""
 echo "✅ 執行完成"
