@@ -16,7 +16,7 @@ Write-Host ""
 
 # 執行程式
 try {
-    uv run python -u src/scrapers/unpaid_freight_scraper.py @args
+    uv run python -u src/scrapers/unpaid_scraper.py @args
 } catch {
     Write-Host "❌ 執行失敗: $_" -ForegroundColor Red
     exit 1
