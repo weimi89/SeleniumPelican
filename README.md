@@ -25,19 +25,38 @@ SeleniumPelican/
 │   ├── core/                     # 核心模組
 │   │   ├── base_scraper.py       # 基礎爬蟲類別
 │   │   ├── multi_account_manager.py  # 多帳號管理器
-│   │   └── browser_utils.py      # 瀏覽器初始化工具
+│   │   ├── browser_utils.py      # 瀏覽器初始化工具
+│   │   └── config_validator.py   # 配置檔案驗證系統
 │   ├── scrapers/                 # 具體實作的爬蟲
 │   │   ├── payment_scraper.py    # 代收貨款查詢工具
 │   │   ├── freight_scraper.py    # 運費查詢工具
 │   │   └── unpaid_scraper.py     # 運費未請款明細工具
 │   └── utils/                    # 工具模組
 │       └── windows_encoding_utils.py  # Windows 相容性工具
-├── run_payment.sh/.cmd/.ps1      # 代收貨款執行腳本
-├── run_freight.sh/.cmd/.ps1      # 運費查詢執行腳本
-├── run_unpaid.sh/.cmd/.ps1        # 運費未請款明細執行腳本
-├── update.sh/.cmd/.ps1          # 自動更新腳本
+├── tests/                        # 測試框架 (pytest)
+│   ├── unit/                     # 單元測試
+│   ├── integration/              # 整合測試
+│   └── fixtures/                 # 測試夾具
+├── scripts/                      # 執行腳本
+│   ├── common_checks.ps1/.sh     # 共用檢查函數
+│   ├── run_*.ps1                 # PowerShell 執行腳本
+│   ├── install.ps1/.sh           # 安裝腳本
+│   └── update.ps1/.sh            # 更新腳本
+├── Windows_代收貨款查詢.cmd      # 標準化執行腳本 (Windows)
+├── Linux_代收貨款查詢.sh         # 標準化執行腳本 (Linux/macOS)
+├── Windows_運費查詢.cmd          # 運費查詢 (Windows)
+├── Linux_運費查詢.sh             # 運費查詢 (Linux/macOS)
+├── Windows_運費未請款明細.cmd     # 運費未請款明細 (Windows)
+├── Linux_運費未請款明細.sh       # 運費未請款明細 (Linux/macOS)
+├── Windows_配置驗證.cmd          # 配置驗證 (Windows)
+├── Linux_配置驗證.sh             # 配置驗證 (Linux/macOS)
+├── Windows_安裝.cmd              # 系統安裝 (Windows)
+├── Linux_安裝.sh                 # 系統安裝 (Linux/macOS)
+├── Windows_更新.cmd              # 系統更新 (Windows)
+├── Linux_更新.sh                 # 系統更新 (Linux/macOS)
 ├── accounts.json                 # 帳號設定檔
 ├── pyproject.toml               # Python 專案設定
+├── pytest.ini                   # pytest 測試設定
 └── uv.lock                      # 鎖定依賴版本
 ```
 
@@ -45,20 +64,17 @@ SeleniumPelican/
 
 保持工具為最新版本，享受最新功能和錯誤修復：
 
-### 一鍵更新 ⚡
-
-**Linux/macOS**：
-```bash
-./update.sh
-```
+### 標準化更新方式 ⚡
 
 **Windows**：
 ```cmd
 # 雙擊執行或在命令提示字元中執行（自動啟動 PowerShell 7）
-update.cmd
+Windows_更新.cmd
+```
 
-# 或直接執行 PowerShell 7 腳本
-update.ps1
+**Linux/macOS**：
+```bash
+./Linux_更新.sh
 ```
 
 ### 更新功能特色
@@ -123,26 +139,25 @@ git --version
 
 ### 方法一：一鍵自動安裝 (推薦) ⚡
 
-**macOS/Linux**：
-```bash
-# 下載並執行自動安裝
-chmod +x setup.sh && ./setup.sh
-```
-
 **Windows**：
 ```cmd
 # 雙擊執行或在命令提示字元中執行（自動啟動 PowerShell 7）
-setup.cmd
+Windows_安裝.cmd
+```
 
-# 或直接執行 PowerShell 7 腳本
-setup.ps1
+**macOS/Linux**：
+```bash
+# 執行自動安裝腳本
+./Linux_安裝.sh
 ```
 
 安裝腳本會自動：
-- ✅ 檢測並安裝 Python
+- ✅ 檢測系統環境（Python、Git、Chrome）
 - ✅ 安裝 uv 套件管理工具
-- ✅ 自動偵測 Chrome 路徑
 - ✅ 建立虛擬環境並安裝依賴
+- ✅ 設定配置檔案（.env、accounts.json）
+- ✅ 建立必要目錄結構
+- ✅ 執行配置驗證和基本測試
 
 ### 方法二：手動安裝
 
@@ -173,23 +188,63 @@ cp .env.example .env
 
 ## 使用方式
 
-### 代收貨款查詢
+### 快速執行 ⚡
 
-**推薦使用方式 (跨平台腳本)**：
+**代收貨款查詢**：
 ```bash
-# macOS/Linux
-./run_payment.sh
+# Windows
+Windows_代收貨款查詢.cmd
 
-# Windows（自動啟動 PowerShell 7）
-run_payment.cmd
+# Linux/macOS
+./Linux_代收貨款查詢.sh
+```
 
-# 或直接使用 PowerShell 7 腳本
-run_payment.ps1
+**運費查詢**：
+```bash
+# Windows
+Windows_運費查詢.cmd
 
-# 其他選項
-./run_payment.sh --headless  # 背景執行
-./run_payment.sh --start-date 20241201 --end-date 20241208  # 指定日期
-run_payment.cmd --start-date 20241201 --end-date 20241208  # Windows 指定日期
+# Linux/macOS
+./Linux_運費查詢.sh
+```
+
+**運費未請款明細**：
+```bash
+# Windows
+Windows_運費未請款明細.cmd
+
+# Linux/macOS
+./Linux_運費未請款明細.sh
+```
+
+**配置驗證**：
+```bash
+# Windows
+Windows_配置驗證.cmd
+
+# Linux/macOS
+./Linux_配置驗證.sh
+```
+
+### 詳細使用說明
+
+#### 代收貨款查詢
+
+**標準化執行方式 (推薦)**：
+```bash
+# Windows
+Windows_代收貨款查詢.cmd
+
+# Linux/macOS
+./Linux_代收貨款查詢.sh
+
+# 指定日期範圍
+Windows_代收貨款查詢.cmd --start-date 20241201 --end-date 20241208
+./Linux_代收貨款查詢.sh --start-date 20241201 --end-date 20241208
+
+# 背景執行模式
+Windows_代收貨款查詢.cmd --headless
+./Linux_代收貨款查詢.sh --headless
 ```
 
 **手動執行**：
@@ -205,20 +260,21 @@ uv run python -u src\scrapers\payment_scraper.py
 
 ### 運費查詢
 
-**推薦使用方式 (跨平台腳本)**：
+**標準化執行方式 (推薦)**：
 ```bash
-# macOS/Linux
-./run_freight.sh
+# Windows
+Windows_運費查詢.cmd
 
-# Windows（自動啟動 PowerShell 7）
-run_freight.cmd
+# Linux/macOS
+./Linux_運費查詢.sh
 
-# 或直接使用 PowerShell 7 腳本
-run_freight.ps1
+# 指定月份範圍
+Windows_運費查詢.cmd --start-month 202411 --end-month 202412
+./Linux_運費查詢.sh --start-month 202411 --end-month 202412
 
-# 其他選項
-./run_freight.sh --headless  # 背景執行
-./run_freight.sh --start-month 202411 --end-month 202412  # 指定月份
+# 背景執行模式
+Windows_運費查詢.cmd --headless
+./Linux_運費查詢.sh --headless
 ```
 
 **手動執行**：
@@ -234,19 +290,17 @@ uv run python -u src\scrapers\freight_scraper.py
 
 ### 運費未請款明細
 
-**推薦使用方式 (跨平台腳本)**：
+**標準化執行方式 (推薦)**：
 ```bash
-# macOS/Linux
-./run_unpaid.sh
+# Windows
+Windows_運費未請款明細.cmd
 
-# Windows（自動啟動 PowerShell 7）
-run_unpaid.cmd
+# Linux/macOS
+./Linux_運費未請款明細.sh
 
-# 或直接使用 PowerShell 7 腳本
-run_unpaid.ps1
-
-# 其他選項
-./run_unpaid.sh --headless  # 背景執行
+# 背景執行模式
+Windows_運費未請款明細.cmd --headless
+./Linux_運費未請款明細.sh --headless
 ```
 
 **手動執行**：

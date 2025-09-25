@@ -14,19 +14,38 @@ SeleniumPelican/
 │   ├── core/                     # 核心模組
 │   │   ├── base_scraper.py       # 基礎爬蟲類別
 │   │   ├── multi_account_manager.py  # 多帳號管理器
-│   │   └── browser_utils.py      # 瀏覽器初始化工具
+│   │   ├── browser_utils.py      # 瀏覽器初始化工具
+│   │   └── config_validator.py   # 配置檔案驗證系統
 │   ├── scrapers/                 # 具體實作的爬蟲
 │   │   ├── payment_scraper.py    # 代收貨款查詢工具
 │   │   ├── freight_scraper.py    # 運費查詢工具
 │   │   └── unpaid_scraper.py     # 運費未請款明細工具
 │   └── utils/                    # 工具模組
 │       └── windows_encoding_utils.py  # Windows 相容性工具
-├── run_payment.sh/.cmd/.ps1      # 代收貨款執行腳本
-├── run_freight.sh/.cmd/.ps1      # 運費查詢執行腳本
-├── run_unpaid.sh/.cmd/.ps1        # 運費未請款明細執行腳本
-├── update.sh/.cmd/.ps1          # 自動更新腳本
+├── tests/                        # 測試框架 (pytest)
+│   ├── unit/                     # 單元測試
+│   ├── integration/              # 整合測試
+│   └── fixtures/                 # 測試夾具
+├── scripts/                      # 執行腳本
+│   ├── common_checks.ps1/.sh     # 共用檢查函數
+│   ├── run_*.ps1                 # PowerShell 執行腳本
+│   ├── install.ps1/.sh           # 安裝腳本
+│   └── update.ps1/.sh            # 更新腳本
+├── Windows_代收貨款查詢.cmd      # 標準化執行腳本 (Windows)
+├── Linux_代收貨款查詢.sh         # 標準化執行腳本 (Linux/macOS)
+├── Windows_運費查詢.cmd          # 運費查詢 (Windows)
+├── Linux_運費查詢.sh             # 運費查詢 (Linux/macOS)
+├── Windows_運費未請款明細.cmd     # 運費未請款明細 (Windows)
+├── Linux_運費未請款明細.sh       # 運費未請款明細 (Linux/macOS)
+├── Windows_配置驗證.cmd          # 配置驗證 (Windows)
+├── Linux_配置驗證.sh             # 配置驗證 (Linux/macOS)
+├── Windows_安裝.cmd              # 系統安裝 (Windows)
+├── Linux_安裝.sh                 # 系統安裝 (Linux/macOS)
+├── Windows_更新.cmd              # 系統更新 (Windows)
+├── Linux_更新.sh                 # 系統更新 (Linux/macOS)
 ├── accounts.json                 # 帳號設定檔
 ├── pyproject.toml               # Python 專案設定
+├── pytest.ini                   # pytest 測試設定
 └── uv.lock                      # 鎖定依賴版本
 ```
 
@@ -50,6 +69,13 @@ SeleniumPelican/
    - 跨平台 Chrome WebDriver 設定和啟動
    - 支援無頭模式和視窗模式
    - 自動處理 ChromeDriver 版本和路徑問題
+
+4. **config_validator.py** (`src/core/config_validator.py`): 配置檔案驗證系統
+   - JSON Schema 驗證 accounts.json 結構完整性
+   - 業務邏輯驗證（重複帳號、弱密碼、範例密碼檢查）
+   - .env 檔案格式和路徑存在性驗證
+   - 自動建立缺失配置檔案功能
+   - 詳細驗證報告和錯誤診斷
 
 ### 工具模組 (src/utils/)
 
@@ -100,27 +126,75 @@ SeleniumPelican/
 
 ## 開發指令
 
-### 自動更新
+### 快速開始
+
+**首次安裝：**
 ```bash
+# Windows
+Windows_安裝.cmd
+
 # Linux/macOS
-./update.sh
-
-# Windows（自動啟動 PowerShell 7）
-update.cmd
-
-# 或直接使用 PowerShell 7 腳本
-update.ps1
+./Linux_安裝.sh
 ```
 
-**自動更新功能**：
-- 🔍 自動檢查遠端更新
-- 💾 自動暫存未提交的變更
-- ⬇️ 執行 git pull 更新
-- 📦 自動更新依賴套件（如果 pyproject.toml 有變更）
-- 🔄 自動還原之前暫存的變更
-- 🛡️ 安全機制：遇到衝突會提示手動處理
+**開始使用：**
+```bash
+# 代收貨款查詢
+Windows_代收貨款查詢.cmd    # Windows
+./Linux_代收貨款查詢.sh      # Linux/macOS
 
-### 設定和安裝
+# 運費查詢
+Windows_運費查詢.cmd        # Windows
+./Linux_運費查詢.sh          # Linux/macOS
+
+# 運費未請款明細
+Windows_運費未請款明細.cmd   # Windows
+./Linux_運費未請款明細.sh     # Linux/macOS
+
+# 配置驗證
+Windows_配置驗證.cmd        # Windows
+./Linux_配置驗證.sh          # Linux/macOS
+```
+
+**定期更新：**
+```bash
+# Windows
+Windows_更新.cmd
+
+# Linux/macOS
+./Linux_更新.sh
+```
+
+### 完整功能說明
+
+#### 安裝腳本功能
+- ✅ **系統環境檢查**: Python 3.8+、Git、Google Chrome
+- ✅ **UV 包管理器自動安裝**: 最新版本自動下載安裝
+- ✅ **虛擬環境建立**: `uv sync` 隔離依賴環境
+- ✅ **配置檔案設定**: 自動複製 `.env.example` 和 `accounts.json.example`
+- ✅ **目錄結構建立**: 建立必要的工作目錄
+- ✅ **權限設定**: Linux/macOS 腳本執行權限
+- ✅ **配置驗證**: 整合配置驗證系統檢查
+- ✅ **基本測試**: Chrome WebDriver 功能驗證
+
+#### 更新腳本功能
+- 🔍 **智慧更新檢查**: Git 儲存庫狀態自動偵測
+- 💾 **本地變更保護**: 自動暫存未提交的變更
+- ⬇️ **安全更新流程**: Git pull 程式碼更新
+- 🔄 **變更還原**: 自動還原暫存的本地變更
+- 📦 **智慧依賴更新**: 根據 `pyproject.toml` 變更決定更新
+- 🛡️ **錯誤處理**: 更新失敗時自動恢復機制
+
+#### 配置驗證系統
+- 📋 **JSON Schema 驗證**: accounts.json 結構完整性檢查
+- 🔍 **業務邏輯驗證**: 重複帳號、弱密碼、範例密碼檢查
+- 🔧 **.env 檔案驗證**: 格式正確性和路徑存在性檢查
+- 🔄 **自動修復**: 缺失配置檔案自動建立
+- 📊 **詳細報告**: 完整的驗證結果和修復建議
+
+### 傳統安裝方式
+
+#### 設定和安裝
 ```bash
 # 安裝 uv（如果尚未安裝）
 curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS/Linux

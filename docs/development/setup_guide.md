@@ -175,13 +175,13 @@ driver.quit()
 
 **Linux/macOS:**
 ```bash
-./run_payment.sh --help
+./Linux_代收貨款查詢.sh --help
 # 應該顯示幫助資訊
 ```
 
 **Windows:**
 ```cmd
-run_payment.cmd --help
+Windows_代收貨款查詢.cmd --help
 ```
 
 ---
