@@ -3,7 +3,7 @@
 
 test_environment() {
     echo "🔍 檢查執行環境..."
-    
+
     # 檢查 uv
     if command -v uv &> /dev/null; then
         UV_VERSION=$(uv --version 2>/dev/null)
@@ -13,7 +13,7 @@ test_environment() {
         echo "請先安裝 uv: https://docs.astral.sh/uv/"
         exit 1
     fi
-    
+
     # 檢查虛擬環境
     if [ -d ".venv" ]; then
         echo "✅ 虛擬環境: .venv 存在"
@@ -26,11 +26,11 @@ test_environment() {
             exit 1
         fi
     fi
-    
+
     # 檢查配置檔案
     if [ -f "accounts.json" ]; then
         echo "✅ 配置檔案: accounts.json 存在"
-        
+
         # 使用配置驗證系統
         echo "🔍 執行配置驗證..."
         export PYTHONPATH="$(pwd)"
@@ -48,7 +48,7 @@ test_environment() {
         fi
         exit 1
     fi
-    
+
     # 檢查 .env 檔案
     if [ -f ".env" ]; then
         echo "✅ 環境設定: .env 存在"
@@ -59,17 +59,17 @@ test_environment() {
             echo "   cp .env.example .env"
         fi
     fi
-    
+
     # 設定必要的環境變數
     export PYTHONUNBUFFERED=1
-    
+
     echo "✅ 環境檢查完成"
     echo ""
 }
 
 test_execution_result() {
     local exit_code=$1
-    
+
     echo ""
     if [ $exit_code -eq 0 ]; then
         echo "🎉 執行完成！"

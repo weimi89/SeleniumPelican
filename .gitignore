@@ -168,3 +168,9 @@ cython_debug/
 # BMAD (local only)
 .bmad-core/
 .bmad-*/
+
+tests/*
+logs/*
+openspec/*
+
+uv.lock

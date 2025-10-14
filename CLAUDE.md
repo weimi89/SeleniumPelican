@@ -1,3 +1,22 @@
+<!-- OPENSPEC:START -->
+# OpenSpec 指令
+
+這些指令是為在此專案中工作的 AI 助理所設計。
+
+當請求有以下情況時，請務必開啟 `@/openspec/AGENTS.md`：
+- 提及規劃或提案（如 proposal、spec、change、plan 等詞彙）
+- 引入新功能、重大變更、架構調整，或重要的效能/安全性工作
+- 聽起來模糊不清，需要權威規格才能開始編碼
+
+使用 `@/openspec/AGENTS.md` 來學習：
+- 如何建立和應用變更提案
+- 規格格式和慣例
+- 專案結構和指導原則
+
+請保留此管理區塊，以便 'openspec update' 可以更新指令。
+
+<!-- OPENSPEC:END -->
+
 # CLAUDE.md
 
 這個檔案為 Claude Code (claude.ai/code) 在此儲存庫工作時提供指導。
@@ -13,9 +32,17 @@ SeleniumPelican/
 ├── src/                          # 所有 Python 原始碼
 │   ├── core/                     # 核心模組
 │   │   ├── base_scraper.py       # 基礎爬蟲類別
+│   │   ├── improved_base_scraper.py  # 改進版基礎爬蟲類別
 │   │   ├── multi_account_manager.py  # 多帳號管理器
 │   │   ├── browser_utils.py      # 瀏覽器初始化工具
-│   │   └── config_validator.py   # 配置檔案驗證系統
+│   │   ├── config_validator.py   # 配置檔案驗證系統
+│   │   ├── constants.py          # 常數定義
+│   │   ├── exceptions.py         # 自訂例外類別
+│   │   ├── smart_wait.py         # 智能等待機制
+│   │   ├── logging_config.py     # 結構化日誌配置
+│   │   ├── log_analyzer.py       # 日誌分析工具
+│   │   ├── diagnostic_manager.py # 診斷管理器
+│   │   └── monitoring_service.py # 監控服務
 │   ├── scrapers/                 # 具體實作的爬蟲
 │   │   ├── payment_scraper.py    # 代收貨款查詢工具
 │   │   ├── freight_scraper.py    # 運費查詢工具
@@ -23,18 +50,40 @@ SeleniumPelican/
 │   └── utils/                    # 工具模組
 │       └── windows_encoding_utils.py  # Windows 相容性工具
 ├── tests/                        # 測試框架 (pytest)
+│   ├── conftest.py               # pytest 配置和夾具
+│   ├── test_diagnostic_manager.py  # 診斷管理器測試
+│   ├── test_improvements_validation.py  # 改進驗證測試
 │   ├── unit/                     # 單元測試
+│   │   ├── test_base_scraper.py  # 基礎爬蟲測試
+│   │   └── test_payment_scraper.py  # 代收貨款爬蟲測試
 │   ├── integration/              # 整合測試
-│   └── fixtures/                 # 測試夾具
-├── scripts/                      # 執行腳本
-│   ├── common_checks.ps1/.sh     # 共用檢查函數
+│   │   └── test_full_workflow.py # 完整工作流程測試
+│   └── performance/              # 效能測試
+│       ├── __init__.py
+│       ├── test_performance_base.py  # 基礎效能測試
+│       └── test_scraper_performance.py  # 爬蟲效能測試
+├── scripts/                      # 執行腳本和工具
+│   ├── common_checks.ps1/.sh/.cmd  # 共用檢查函數
 │   ├── run_*.ps1                 # PowerShell 執行腳本
 │   ├── install.ps1/.sh           # 安裝腳本
-│   └── update.ps1/.sh            # 更新腳本
-├── Windows_代收貨款查詢.cmd      # 標準化執行腳本 (Windows)
-├── Linux_代收貨款查詢.sh         # 標準化執行腳本 (Linux/macOS)
-├── Windows_運費查詢.cmd          # 運費查詢 (Windows)
-├── Linux_運費查詢.sh             # 運費查詢 (Linux/macOS)
+│   ├── update.ps1/.sh            # 更新腳本
+│   ├── convert_print_to_logger.py  # 日誌轉換工具
+│   ├── log_monitor.py            # 日誌監控工具
+│   └── run_performance_tests.py  # 效能測試執行器
+├── openspec/                     # OpenSpec 變更管理系統
+│   ├── AGENTS.md                 # AI 助理指南
+│   ├── project.md                # 專案規格
+│   ├── specs/                    # 規格文檔
+│   └── changes/                  # 變更提案和實作記錄
+├── logs/                         # 執行日誌和診斷資料
+│   └── diagnostics/              # 診斷數據目錄
+├── downloads/                    # 下載的檔案目錄
+├── reports/                      # 執行報告目錄
+├── temp/                         # 暫存檔案目錄
+├── Windows_代收貨款匯款明細.cmd   # 標準化執行腳本 (Windows)
+├── Linux_代收貨款匯款明細.sh     # 標準化執行腳本 (Linux/macOS)
+├── Windows_運費發票明細.cmd      # 運費發票明細 (Windows)
+├── Linux_運費發票明細.sh         # 運費發票明細 (Linux/macOS)
 ├── Windows_運費未請款明細.cmd     # 運費未請款明細 (Windows)
 ├── Linux_運費未請款明細.sh       # 運費未請款明細 (Linux/macOS)
 ├── Windows_配置驗證.cmd          # 配置驗證 (Windows)
@@ -44,9 +93,18 @@ SeleniumPelican/
 ├── Windows_更新.cmd              # 系統更新 (Windows)
 ├── Linux_更新.sh                 # 系統更新 (Linux/macOS)
 ├── accounts.json                 # 帳號設定檔
+├── accounts.json.example         # 帳號設定範例
+├── .env                          # 環境變數設定
+├── .env.example                  # 環境變數設定範例
 ├── pyproject.toml               # Python 專案設定
 ├── pytest.ini                   # pytest 測試設定
-└── uv.lock                      # 鎖定依賴版本
+├── pytest-performance.ini       # 效能測試設定
+├── .pre-commit-config.yaml      # Git pre-commit 鉤子設定
+├── uv.lock                      # 鎖定依賴版本
+├── CLAUDE.md                    # Claude Code 工作指南
+├── README.md                    # 專案說明文檔
+├── AGENTS.md                    # AI 助理說明
+└── IMPROVEMENT_SUMMARY.md       # 改進摘要文檔
 ```
 
 ## 核心架構
@@ -59,23 +117,64 @@ SeleniumPelican/
    - 實作基本的導航流程（查詢作業 → 查件頁面 → iframe 切換）
    - 提供共用的瀏覽器管理和連接管理功能
 
-2. **MultiAccountManager** (`src/core/multi_account_manager.py`): 多帳號管理器
+2. **ImprovedBaseScraper** (`src/core/improved_base_scraper.py`): 改進版基礎爬蟲類別
+   - 優化的錯誤處理和重試機制
+   - 增強的日誌記錄和診斷功能
+   - 改進的效能監控和資源管理
+   - 更強健的異常恢復能力
+
+3. **MultiAccountManager** (`src/core/multi_account_manager.py`): 多帳號管理器
    - 讀取和解析 `accounts.json` 設定檔
    - 支援多帳號批次處理
    - 產生整合的總結報告
    - 提供依賴注入模式支援不同的抓取器類別
 
-3. **browser_utils.py** (`src/core/browser_utils.py`): Chrome 瀏覽器初始化工具
+4. **browser_utils.py** (`src/core/browser_utils.py`): Chrome 瀏覽器初始化工具
    - 跨平台 Chrome WebDriver 設定和啟動
    - 支援無頭模式和視窗模式
    - 自動處理 ChromeDriver 版本和路徑問題
 
-4. **config_validator.py** (`src/core/config_validator.py`): 配置檔案驗證系統
+5. **config_validator.py** (`src/core/config_validator.py`): 配置檔案驗證系統
    - JSON Schema 驗證 accounts.json 結構完整性
    - 業務邏輯驗證（重複帳號、弱密碼、範例密碼檢查）
    - .env 檔案格式和路徑存在性驗證
    - 自動建立缺失配置檔案功能
    - 詳細驗證報告和錯誤診斷
+
+6. **constants.py** (`src/core/constants.py`): 常數定義
+   - 全域常數和配置參數
+   - 系統設定和預設值
+   - 路徑和URL配置
+
+7. **exceptions.py** (`src/core/exceptions.py`): 自訂例外類別
+   - 專案特定的例外類別定義
+   - 結構化錯誤處理機制
+   - 錯誤分類和錯誤碼管理
+
+8. **smart_wait.py** (`src/core/smart_wait.py`): 智能等待機制
+   - 適應性等待策略
+   - 動態超時調整
+   - 網頁元素智能偵測
+
+9. **logging_config.py** (`src/core/logging_config.py`): 結構化日誌配置
+   - 多層級日誌系統設定
+   - 格式化和輸出配置
+   - 日誌輪轉和存檔管理
+
+10. **log_analyzer.py** (`src/core/log_analyzer.py`): 日誌分析工具
+    - 日誌解析和分析功能
+    - 錯誤模式識別
+    - 效能指標提取
+
+11. **diagnostic_manager.py** (`src/core/diagnostic_manager.py`): 診斷管理器
+    - 系統診斷和健康檢查
+    - 問題檢測和報告
+    - 診斷資料收集
+
+12. **monitoring_service.py** (`src/core/monitoring_service.py`): 監控服務
+    - 即時系統監控
+    - 效能指標追蹤
+    - 警報和通知機制
 
 ### 工具模組 (src/utils/)
 
@@ -115,6 +214,57 @@ SeleniumPelican/
    - **下載方式**: 直接抓取HTML表格並使用 BeautifulSoup 解析轉換為Excel檔案
    - **特色**: 無需點擊下載連結，直接從網頁表格提取數據
 
+### 測試架構 (tests/)
+
+本專案採用分層測試策略，確保程式碼品質和系統穩定性：
+
+1. **單元測試** (`tests/unit/`): 針對個別模組和函數的測試
+   - `test_base_scraper.py`: 基礎爬蟲功能測試
+   - `test_payment_scraper.py`: 代收貨款爬蟲邏輯測試
+
+2. **整合測試** (`tests/integration/`): 跨模組協作測試
+   - `test_full_workflow.py`: 完整工作流程端到端測試
+
+3. **效能測試** (`tests/performance/`): 系統效能評估
+   - `test_performance_base.py`: 基礎效能測試框架
+   - `test_scraper_performance.py`: 爬蟲效能基準測試
+
+4. **專項測試**: 
+   - `test_diagnostic_manager.py`: 診斷管理器功能測試
+   - `test_improvements_validation.py`: 系統改進驗證測試
+   - `conftest.py`: pytest 配置和共享夾具
+
+### 工具腳本 (scripts/)
+
+增強的腳本工具集合，提供開發和維護支援：
+
+1. **執行腳本**: 
+   - `run_*.ps1`: PowerShell 執行腳本，自動環境設定
+   - `common_checks.*`: 跨平台檢查函數庫
+
+2. **系統管理**:
+   - `install.ps1/.sh`: 智能安裝腳本，環境檢測和依賴安裝
+   - `update.ps1/.sh`: 安全更新腳本，版本控制和依賴同步
+
+3. **開發工具**:
+   - `convert_print_to_logger.py`: 自動將 print 語句轉換為結構化日誌
+   - `log_monitor.py`: 即時日誌監控和分析工具
+   - `run_performance_tests.py`: 效能測試執行器和報告生成
+
+### OpenSpec 變更管理系統 (openspec/)
+
+專業的變更提案和規格管理系統：
+
+1. **核心文檔**:
+   - `AGENTS.md`: AI 助理工作指南和最佳實踐
+   - `project.md`: 專案總體規格和架構文檔
+
+2. **變更管理**:
+   - `changes/`: 變更提案目錄，包含提案、設計、實作和歸檔
+   - `specs/`: 詳細技術規格文檔
+
+3. **品質保證**: 系統性的變更追蹤、審查和實作驗證流程
+
 ### 關鍵技術細節
 
 - **iframe 導航**: 工具在 WEDI 系統的巢狀 iframe 中導航。所有操作都在 `datamain` iframe 內維持上下文，避免切換衝突。
@@ -123,6 +273,9 @@ SeleniumPelican/
 - **跨平台 Chrome 支援**: 使用 `.env` 檔案設定 Chrome 在 macOS、Windows 和 Linux 系統的執行檔路徑。
 - **日期範圍彈性**: 支援命令列日期參數（`--start-date`、`--end-date`），預設為當日。
 - **現代 Python 管理**: 使用 uv 進行快速依賴管理和虛擬環境處理。
+- **結構化日誌**: 實作多層級日誌系統，支援診斷和效能監控。
+- **智能等待機制**: 適應性等待策略，提升操作穩定性和效率。
+- **品質保證**: 全面的測試覆蓋，包含單元、整合和效能測試。
 
 ## 開發指令
 

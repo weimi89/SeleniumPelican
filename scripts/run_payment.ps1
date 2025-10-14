@@ -43,7 +43,7 @@ try {
             if ($endDate -and $endDate -match '^\d{8}$') {
                 $args += "--start-date"
                 $args += $startDate
-                $args += "--end-date" 
+                $args += "--end-date"
                 $args += $endDate
                 Write-Host "✅ 將查詢 $startDate 到 $endDate 的資料" -ForegroundColor Green
             } else {

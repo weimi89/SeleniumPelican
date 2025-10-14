@@ -44,4 +44,4 @@ echo 🚀 使用傳統 PowerShell 啟動...
 start "SeleniumPelican 更新" powershell -NoExit -ExecutionPolicy Bypass -Command "Set-Location '%CD%'; & '.\scripts\update.ps1'" %*
 
 :end
-popd
+popd

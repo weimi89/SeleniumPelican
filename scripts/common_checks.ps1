@@ -2,9 +2,9 @@
 
 function Test-Environment {
     """檢查執行環境"""
-    
+
     Write-Host "🔍 檢查執行環境..." -ForegroundColor Yellow
-    
+
     # 檢查 Python 和 uv
     try {
         $uvVersion = & uv --version 2>$null
@@ -20,7 +20,7 @@ function Test-Environment {
         Write-Host "請先安裝 uv: https://docs.astral.sh/uv/" -ForegroundColor Yellow
         exit 1
     }
-    
+
     # 檢查虛擬環境
     if (Test-Path ".venv") {
         Write-Host "✅ 虛擬環境: .venv 存在" -ForegroundColor Green
@@ -33,11 +33,11 @@ function Test-Environment {
             exit 1
         }
     }
-    
+
     # 檢查配置檔案
     if (Test-Path "accounts.json") {
         Write-Host "✅ 配置檔案: accounts.json 存在" -ForegroundColor Green
-        
+
         # 使用配置驗證系統
         try {
             Write-Host "🔍 執行配置驗證..." -ForegroundColor Yellow
@@ -60,7 +60,7 @@ function Test-Environment {
         }
         exit 1
     }
-    
+
     # 檢查 .env 檔案
     if (Test-Path ".env") {
         Write-Host "✅ 環境設定: .env 存在" -ForegroundColor Green
@@ -71,10 +71,10 @@ function Test-Environment {
             Write-Host "   copy .env.example .env" -ForegroundColor Cyan
         }
     }
-    
+
     # 設定必要的環境變數
     $env:PYTHONUNBUFFERED = "1"
-    
+
     Write-Host "✅ 環境檢查完成" -ForegroundColor Green
     Write-Host ""
 }
@@ -83,7 +83,7 @@ function Test-ExecutionResult {
     param(
         [int]$ExitCode
     )
-    
+
     Write-Host ""
     if ($ExitCode -eq 0) {
         Write-Host "🎉 執行完成！" -ForegroundColor Green
