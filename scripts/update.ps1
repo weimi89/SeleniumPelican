@@ -56,7 +56,7 @@ Write-Host ""
 if (-not $isGitRepo) {
     Write-Host "⚠️ 非 Git 儲存庫，僅執行依賴更新" -ForegroundColor Yellow
     Write-Host ""
-    
+
     # 步驟 1: 更新依賴
     Write-Host "📋 步驟 1: 更新依賴套件" -ForegroundColor Yellow
     try {
@@ -75,17 +75,17 @@ if (-not $isGitRepo) {
 } else {
     Write-Host "🚀 開始執行更新程序..." -ForegroundColor Blue
     Write-Host ""
-    
+
     # 步驟 1: 檢查遠端更新
     Write-Host "📋 步驟 1: 檢查遠端更新" -ForegroundColor Yellow
     try {
         Write-Host "🔍 正在檢查遠端更新..." -ForegroundColor Blue
         & git fetch origin
-        
+
         $currentBranch = & git branch --show-current
         $localCommit = & git rev-parse HEAD
         $remoteCommit = & git rev-parse "origin/$currentBranch" 2>$null
-        
+
         if ($localCommit -eq $remoteCommit) {
             Write-Host "ℹ️ 程式碼已是最新版本" -ForegroundColor Blue
             $hasUpdates = $false
@@ -97,12 +97,12 @@ if (-not $isGitRepo) {
         Write-Host "❌ 檢查遠端更新失敗: $($_.Exception.Message)" -ForegroundColor Red
         $hasUpdates = $false
     }
-    
+
     # 步驟 2: 暫存本地變更
     if ($hasUpdates) {
         Write-Host ""
         Write-Host "📋 步驟 2: 處理本地變更" -ForegroundColor Yellow
-        
+
         $hasLocalChanges = $false
         try {
             $status = & git status --porcelain
@@ -122,7 +122,7 @@ if (-not $isGitRepo) {
         } catch {
             Write-Host "❌ 處理本地變更失敗: $($_.Exception.Message)" -ForegroundColor Red
         }
-        
+
         # 步驟 3: 執行更新
         Write-Host ""
         Write-Host "📋 步驟 3: 執行程式碼更新" -ForegroundColor Yellow
@@ -143,7 +143,7 @@ if (-not $isGitRepo) {
             Read-Host "按 Enter 鍵繼續..."
             exit 1
         }
-        
+
         # 步驟 4: 還原本地變更
         if ($hasLocalChanges) {
             Write-Host ""
@@ -162,11 +162,11 @@ if (-not $isGitRepo) {
             }
         }
     }
-    
+
     # 步驟 5: 檢查依賴更新
     Write-Host ""
     Write-Host "📋 步驟 $(if ($hasUpdates) { '5' } else { '2' }): 檢查依賴更新" -ForegroundColor Yellow
-    
+
     $needsDependencyUpdate = $false
     try {
         if ($hasUpdates) {
@@ -185,7 +185,7 @@ if (-not $isGitRepo) {
                 $needsDependencyUpdate = $true
             }
         }
-        
+
         if ($needsDependencyUpdate) {
             Write-Host "⬇️ 正在執行: uv sync --upgrade" -ForegroundColor Blue
             & uv sync --upgrade

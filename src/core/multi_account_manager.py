@@ -5,13 +5,14 @@
 多帳號管理器共用模組
 """
 
-import os
 import json
+import os
 import time
 from datetime import datetime
 from pathlib import Path
 
 from ..utils.windows_encoding_utils import safe_print
+from .logging_config import get_logger, log_with_safe_print
 
 
 class MultiAccountManager:
@@ -19,6 +20,7 @@ class MultiAccountManager:
 
     def __init__(self, config_file="accounts.json"):
         self.config_file = config_file
+        self.logger = get_logger("multi_account_manager")
         self.load_config()
 
     def load_config(self):
@@ -30,13 +32,13 @@ class MultiAccountManager:
             )
 
         try:
-            with open(self.config_file, 'r', encoding='utf-8') as f:
+            with open(self.config_file, "r", encoding="utf-8") as f:
                 self.config = json.load(f)
 
             if "accounts" not in self.config or not self.config["accounts"]:
                 raise ValueError("⛔ 設定檔中沒有找到帳號資訊！")
 
-            safe_print(f"✅ 已載入設定檔: {self.config_file}")
+            self.logger.info(f"✅ 已載入設定檔: {self.config_file}", config_file=self.config_file)
 
         except json.JSONDecodeError as e:
             raise ValueError(f"⛔ 設定檔格式錯誤: {e}")
@@ -47,7 +49,16 @@ class MultiAccountManager:
         """取得啟用的帳號列表"""
         return [acc for acc in self.config["accounts"] if acc.get("enabled", True)]
 
-    def run_all_accounts(self, scraper_class, headless_override=None, progress_callback=None, start_date=None, end_date=None, start_month=None, end_month=None):
+    def run_all_accounts(
+        self,
+        scraper_class,
+        headless_override=None,
+        progress_callback=None,
+        start_date=None,
+        end_date=None,
+        start_month=None,
+        end_month=None,
+    ):
         """
         執行所有啟用的帳號
 
@@ -68,9 +79,9 @@ class MultiAccountManager:
         if progress_callback:
             progress_callback(f"🚀 開始執行多帳號 WEDI 自動下載 (共 {len(accounts)} 個帳號)")
         else:
-            print("\n" + "=" * 80)
-            safe_print(f"🚀 開始執行多帳號 WEDI 自動下載 (共 {len(accounts)} 個帳號)")
-            print("=" * 80)
+            self.logger.info("=" * 80)
+            self.logger.info(f"🚀 開始執行多帳號 WEDI 自動下載 (共 {len(accounts)} 個帳號)", total_accounts=len(accounts))
+            self.logger.info("=" * 80)
 
         for i, account in enumerate(accounts, 1):
             username = account["username"]
@@ -80,19 +91,23 @@ class MultiAccountManager:
             if progress_callback:
                 progress_callback(progress_msg)
             else:
-                print(f"\n{progress_msg}")
-                print("-" * 50)
+                self.logger.info(progress_msg, account_index=i, total_accounts=len(accounts), username=username)
+                self.logger.info("-" * 50)
 
             try:
                 # 如果有命令列參數覆寫，則使用該設定
-                use_headless = headless_override if headless_override is not None else settings.get("headless", False)
+                use_headless = (
+                    headless_override
+                    if headless_override is not None
+                    else settings.get("headless", False)
+                )
 
                 # 準備 scraper 參數，根據不同類型傳遞適當的日期/月份參數
                 scraper_kwargs = {
                     "username": username,
                     "password": password,
                     "headless": use_headless,
-                    "download_base_dir": settings.get("download_base_dir", "downloads")
+                    "download_base_dir": settings.get("download_base_dir", "downloads"),
                 }
 
                 # 檢查 scraper 類別名稱來決定傳遞哪種日期參數
@@ -116,56 +131,50 @@ class MultiAccountManager:
 
                 # 帳號間暫停一下避免過於頻繁
                 if i < len(accounts):
-                    safe_print("⏳ 等待 3 秒後處理下一個帳號...")
-                    time.sleep(3)
+                    time.sleep(2)
 
             except Exception as e:
-                safe_print(f"💥 帳號 {username} 處理失敗: {e}")
+                error_msg = f"帳號 {username} 執行失敗: {str(e)}"
+                if progress_callback:
+                    progress_callback(error_msg)
+                else:
+                    self.logger.error(error_msg, username=username, error=str(e))
+
                 results.append({
                     "success": False,
                     "username": username,
                     "error": str(e),
-                    "downloads": [],
-                    "records": []
+                    "downloads": []
                 })
-                continue
 
-        # 生成總報告
-        self.generate_summary_report(results)
-        return results
-
-    def generate_summary_report(self, results):
-        """生成總體執行報告"""
-        print("\n" + "=" * 80)
-        safe_print("📋 多帳號執行總結報告")
-        print("=" * 80)
-
+        # 分析結果
         successful_accounts = [r for r in results if r["success"]]
         failed_accounts = [r for r in results if not r["success"]]
-        total_downloads = sum(len(r["downloads"]) for r in results)
+        total_downloads = sum(len(r["downloads"]) for r in successful_accounts)
 
-        safe_print(f"📊 執行統計:")
-        print(f"   總帳號數: {len(results)}")
-        print(f"   成功帳號: {len(successful_accounts)}")
-        print(f"   失敗帳號: {len(failed_accounts)}")
-        print(f"   總下載檔案: {total_downloads}")
+        # 顯示統計
+        self.logger.log_data_info("執行統計",
+                                  total_accounts=len(results),
+                                  successful_accounts=len(successful_accounts),
+                                  failed_accounts=len(failed_accounts),
+                                  total_downloads=total_downloads)
 
         if successful_accounts:
-            safe_print(f"\n✅ 成功帳號詳情:")
+            self.logger.info("✅ 成功帳號詳情:")
             for result in successful_accounts:
                 username = result["username"]
                 download_count = len(result["downloads"])
                 if result.get("message") == "無資料可下載":
-                    safe_print(f"   🔸 {username}: 無資料可下載")
+                    self.logger.info(f"   🔸 {username}: 無資料可下載", username=username, status="no_data")
                 else:
-                    safe_print(f"   🔸 {username}: 成功下載 {download_count} 個檔案")
+                    self.logger.info(f"   🔸 {username}: 成功下載 {download_count} 個檔案", username=username, download_count=download_count)
 
         if failed_accounts:
-            safe_print(f"\n❌ 失敗帳號詳情:")
+            self.logger.error("❌ 失敗帳號詳情:", failed_count=len(failed_accounts))
             for result in failed_accounts:
                 username = result["username"]
                 error = result.get("error", "未知錯誤")
-                safe_print(f"   🔸 {username}: {error}")
+                self.logger.error(f"   🔸 {username}: {error}", username=username, error=error)
 
         # 保存詳細報告
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -182,7 +191,7 @@ class MultiAccountManager:
                 "success": result["success"],
                 "username": result["username"],
                 "downloads": result["downloads"],
-                "records": len(result.get("records", [])) if result.get("records") else 0
+                "records": len(result.get("records", [])) if result.get("records") else 0,
             }
             if "error" in result:
                 clean_result["error"] = result["error"]
@@ -190,15 +199,20 @@ class MultiAccountManager:
                 clean_result["message"] = result["message"]
             clean_results.append(clean_result)
 
-        with open(report_file, 'w', encoding='utf-8') as f:
-            json.dump({
-                "execution_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "total_accounts": len(results),
-                "successful_accounts": len(successful_accounts),
-                "failed_accounts": len(failed_accounts),
-                "total_downloads": total_downloads,
-                "details": clean_results
-            }, f, ensure_ascii=False, indent=2)
+        with open(report_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "execution_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "total_accounts": len(results),
+                    "successful_accounts": len(successful_accounts),
+                    "failed_accounts": len(failed_accounts),
+                    "total_downloads": total_downloads,
+                    "details": clean_results,
+                },
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
 
-        safe_print(f"\n💾 詳細報告已保存: {report_file}")
-        print("=" * 80)
+        self.logger.log_operation_success("詳細報告保存", report_file=str(report_file), total_accounts=len(results))
+        self.logger.info("=" * 80)

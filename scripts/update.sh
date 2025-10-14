@@ -41,7 +41,7 @@ echo ""
 if [ "$IS_GIT_REPO" = false ]; then
     echo "⚠️ 非 Git 儲存庫，僅執行依賴更新"
     echo ""
-    
+
     # 步驟 1: 更新依賴
     echo "📋 步驟 1: 更新依賴套件"
     echo "⬇️ 正在執行: uv sync --upgrade"
@@ -54,16 +54,16 @@ if [ "$IS_GIT_REPO" = false ]; then
 else
     echo "🚀 開始執行更新程序..."
     echo ""
-    
+
     # 步驟 1: 檢查遠端更新
     echo "📋 步驟 1: 檢查遠端更新"
     echo "🔍 正在檢查遠端更新..."
-    
+
     if git fetch origin; then
         CURRENT_BRANCH=$(git branch --show-current)
         LOCAL_COMMIT=$(git rev-parse HEAD)
         REMOTE_COMMIT=$(git rev-parse "origin/$CURRENT_BRANCH" 2>/dev/null)
-        
+
         if [ "$LOCAL_COMMIT" = "$REMOTE_COMMIT" ]; then
             echo "ℹ️ 程式碼已是最新版本"
             HAS_UPDATES=false
@@ -75,12 +75,12 @@ else
         echo "❌ 檢查遠端更新失敗"
         HAS_UPDATES=false
     fi
-    
+
     # 步驟 2: 暫存本地變更
     if [ "$HAS_UPDATES" = true ]; then
         echo ""
         echo "📋 步驟 2: 處理本地變更"
-        
+
         HAS_LOCAL_CHANGES=false
         if git status --porcelain | grep -q .; then
             echo "💾 發現本地變更，正在暫存..."
@@ -94,7 +94,7 @@ else
         else
             echo "ℹ️ 無本地變更需要暫存"
         fi
-        
+
         # 步驟 3: 執行更新
         echo ""
         echo "📋 步驟 3: 執行程式碼更新"
@@ -109,7 +109,7 @@ else
             fi
             exit 1
         fi
-        
+
         # 步驟 4: 還原本地變更
         if [ "$HAS_LOCAL_CHANGES" = true ]; then
             echo ""
@@ -123,7 +123,7 @@ else
             fi
         fi
     fi
-    
+
     # 步驟 5: 檢查依賴更新
     echo ""
     if [ "$HAS_UPDATES" = true ]; then
@@ -131,7 +131,7 @@ else
     else
         echo "📋 步驟 2: 檢查依賴更新"
     fi
-    
+
     NEEDS_DEPENDENCY_UPDATE=false
     if [ "$HAS_UPDATES" = true ]; then
         # 檢查 pyproject.toml 是否有變更
@@ -148,7 +148,7 @@ else
             NEEDS_DEPENDENCY_UPDATE=true
         fi
     fi
-    
+
     if [ "$NEEDS_DEPENDENCY_UPDATE" = true ]; then
         echo "⬇️ 正在執行: uv sync --upgrade"
         if uv sync --upgrade; then
