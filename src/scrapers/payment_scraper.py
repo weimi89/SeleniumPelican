@@ -560,39 +560,39 @@ class PaymentScraper(BaseScraper):
         try:
             # 直接從頁面提取 data-fileblob 數據並生成 Excel
             safe_print("🚀 嘗試從頁面提取 data-fileblob 數據...")
-            
+
             # 尋找包含 data-fileblob 屬性的按鈕
             fileblob_buttons = self.driver.find_elements(By.CSS_SELECTOR, "button[data-fileblob]")
-            
+
             if fileblob_buttons:
                 fileblob_button = fileblob_buttons[0]
                 fileblob_data = fileblob_button.get_attribute("data-fileblob")
-                
+
                 if fileblob_data:
                     try:
                         # 解析 JSON 數據
                         blob_json = json.loads(fileblob_data)
                         data_array = blob_json.get("data", [])
-                        
+
                         if data_array:
                             # 使用 openpyxl 創建 Excel 檔案
                             wb = openpyxl.Workbook()
                             ws = wb.active
                             ws.title = "代收貨款匯款明細"
-                            
+
                             # 將數據寫入工作表
                             for row_index, row_data in enumerate(data_array, 1):
                                 for col_index, cell_value in enumerate(row_data, 1):
                                     # 清理 HTML 實體和空白字符
                                     if isinstance(cell_value, str):
                                         cell_value = cell_value.replace("&nbsp;", "").strip()
-                                    
+
                                     cell = ws.cell(row=row_index, column=col_index, value=cell_value)
-                                    
+
                                     # 設定標題行格式
                                     if row_index == 1:
                                         cell.font = openpyxl.styles.Font(bold=True)
-                            
+
                             # 自動調整欄寬
                             for column in ws.columns:
                                 max_length = 0
@@ -605,43 +605,43 @@ class PaymentScraper(BaseScraper):
                                         pass
                                 adjusted_width = min(max_length + 2, 50)
                                 ws.column_dimensions[column_letter].width = adjusted_width
-                            
+
                             # 生成檔案名稱
                             new_name = f"{self.username}_{payment_no}.xlsx"
                             new_path = self.download_dir / new_name
-                            
+
                             # 如果目標檔案已存在，直接覆蓋
                             if new_path.exists():
                                 safe_print(f"⚠️ 檔案已存在，將覆蓋: {new_name}")
                                 new_path.unlink()
-                            
+
                             # 保存 Excel 檔案
                             wb.save(new_path)
                             safe_print(f"✅ 已生成 Excel 檔案: {new_name} (共 {len(data_array)} 行數據)")
-                            
+
                             return True
-                            
+
                         else:
                             safe_print("❌ data-fileblob 中沒有找到數據陣列")
                             return False
-                            
+
                     except json.JSONDecodeError as json_e:
                         safe_print(f"❌ 解析 data-fileblob JSON 失敗: {json_e}")
                         safe_print(f"   原始數據前500字元: {fileblob_data[:500]}")
                         return False
-                    
+
                     except Exception as excel_e:
                         safe_print(f"❌ 生成 Excel 檔案失敗: {excel_e}")
                         return False
-                
+
                 else:
                     safe_print("❌ data-fileblob 屬性為空")
                     return False
-                    
+
             else:
                 safe_print("⚠️ 未找到包含 data-fileblob 的元素，嘗試傳統下載方式...")
                 return self._fallback_download_excel(payment_no)
-                
+
         except Exception as blob_e:
             safe_print(f"❌ data-fileblob 提取失敗: {blob_e}")
             safe_print("🔄 嘗試傳統下載方式...")
@@ -686,7 +686,7 @@ class PaymentScraper(BaseScraper):
                 # 重命名新下載的檔案
                 for new_file in new_files:
                     if new_file.suffix.lower() in ['.xlsx', '.xls']:
-                        new_name = f"{self.username}_{payment_no}{new_file.suffix}"
+                        new_name = f"代收貨款匯款明細_{self.username}_{payment_no}{new_file.suffix}"
                         new_path = self.download_dir / new_name
 
                         # 如果目標檔案已存在，直接覆蓋
