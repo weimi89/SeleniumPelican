@@ -222,32 +222,32 @@ class FreightScraper(BaseScraper):
                 try:
                     rows = table.find_elements(By.TAG_NAME, "tr")
                     safe_print(f"   表格 {table_index + 1} 有 {len(rows)} 行")
-                    
+
                     # 詳細分析每一行的內容
                     for row_index, row in enumerate(rows):
                         try:
                             cells = row.find_elements(By.TAG_NAME, "td")
                             th_cells = row.find_elements(By.TAG_NAME, "th")
                             total_cells = len(cells) + len(th_cells)
-                            
+
                             if total_cells > 0:
                                 safe_print(f"   行 {row_index + 1}: {len(cells)} 個 td, {len(th_cells)} 個 th")
-                                
+
                                 # 檢查每個欄位的內容
                                 all_cells = cells if cells else th_cells
                                 for cell_index, cell in enumerate(all_cells):
                                     cell_text = cell.text.strip()
                                     if cell_text:
                                         safe_print(f"     欄位 {cell_index + 1}: '{cell_text}'")
-                                        
+
                                         # 檢查這個欄位是否包含發票號碼（英數字組合，長度 > 8）
-                                        if (len(cell_text) > 8 and 
-                                            any(c.isdigit() for c in cell_text) and 
+                                        if (len(cell_text) > 8 and
+                                            any(c.isdigit() for c in cell_text) and
                                             any(c.isalpha() for c in cell_text) and
                                             cell_text not in ["發票號碼", "小計", "總計"]):
-                                            
+
                                             safe_print(f"     🔍 可能的發票號碼: '{cell_text}'")
-                                            
+
                                             # 檢查是否有可點擊的連結
                                             invoice_link = None
                                             try:
@@ -277,7 +277,7 @@ class FreightScraper(BaseScraper):
                                                                 break
                                                 except:
                                                     pass
-                                                
+
                                                 records.append({
                                                     "index": len(records) + 1,
                                                     "title": f"發票號碼: {cell_text}",
@@ -287,11 +287,11 @@ class FreightScraper(BaseScraper):
                                                     "link": invoice_link
                                                 })
                                                 safe_print(f"   ✅ 找到發票記錄: {cell_text} (日期: {invoice_date})")
-                                                
+
                         except Exception as row_e:
                             safe_print(f"   ⚠️ 處理行 {row_index + 1} 時出錯: {row_e}")
                             continue
-                            
+
                 except Exception as table_e:
                     safe_print(f"   ⚠️ 處理表格 {table_index + 1} 時出錯: {table_e}")
                     continue
@@ -354,7 +354,7 @@ class FreightScraper(BaseScraper):
             # 重新搜尋發票連結（避免 stale element reference）
             invoice_no = record['invoice_no']
             safe_print(f"🔍 重新搜尋發票號碼 {invoice_no} 的連結...")
-            
+
             found_link = None
             # 方法1：直接用發票號碼搜尋連結
             try:
@@ -438,24 +438,24 @@ class FreightScraper(BaseScraper):
             # 直接從頁面提取 data-fileblob 數據並生成 Excel
             try:
                 safe_print("🚀 嘗試從頁面提取 data-fileblob 數據...")
-                
+
                 # 尋找包含 data-fileblob 屬性的按鈕
                 fileblob_buttons = self.driver.find_elements(By.CSS_SELECTOR, "button[data-fileblob]")
-                
+
                 if not fileblob_buttons:
                     # 如果找不到，嘗試其他可能的選擇器
                     fileblob_buttons = self.driver.find_elements(By.XPATH, "//*[@data-fileblob]")
-                
+
                 if fileblob_buttons:
                     safe_print(f"✅ 找到 {len(fileblob_buttons)} 個包含 data-fileblob 的元素")
-                    
+
                     # 通常第一個就是我們要的匯出按鈕
                     fileblob_button = fileblob_buttons[0]
                     fileblob_data = fileblob_button.get_attribute("data-fileblob")
-                    
+
                     if fileblob_data:
                         safe_print("✅ 成功獲取 data-fileblob 數據")
-                        
+
                         try:
                             # 解析 JSON 數據
                             blob_json = json.loads(fileblob_data)
@@ -463,37 +463,37 @@ class FreightScraper(BaseScraper):
                             filename_base = blob_json.get("fileName", "Excel")
                             mime_type = blob_json.get("mimeType", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                             file_extension = blob_json.get("fileExtension", ".xlsx")
-                            
+
                             safe_print(f"📊 數據信息:")
                             safe_print(f"   檔名: {filename_base}{file_extension}")
                             safe_print(f"   MIME類型: {mime_type}")
                             safe_print(f"   數據行數: {len(data_array)}")
-                            
+
                             if data_array:
                                 # 使用 openpyxl 創建 Excel 檔案
                                 wb = openpyxl.Workbook()
                                 ws = wb.active
                                 ws.title = "運費明細"
-                                
+
                                 # 將數據寫入工作表
                                 for row_index, row_data in enumerate(data_array, 1):
                                     for col_index, cell_value in enumerate(row_data, 1):
                                         # 清理數據（移除HTML空格等）
                                         if isinstance(cell_value, str):
                                             cell_value = cell_value.replace("&nbsp;", "").strip()
-                                        
+
                                         ws.cell(row=row_index, column=col_index, value=cell_value)
-                                
+
                                 # 設定表頭樣式
                                 if len(data_array) > 0:
                                     from openpyxl.styles import Font, PatternFill, Border, Side
-                                    
+
                                     # 表頭加粗
                                     for col_index in range(1, len(data_array[0]) + 1):
                                         cell = ws.cell(row=1, column=col_index)
                                         cell.font = Font(bold=True)
                                         cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
-                                
+
                                 # 自動調整欄寬
                                 for column in ws.columns:
                                     max_length = 0
@@ -506,44 +506,44 @@ class FreightScraper(BaseScraper):
                                             pass
                                     adjusted_width = min(max_length + 2, 50)  # 最大寬度限制
                                     ws.column_dimensions[column_letter].width = adjusted_width
-                                
+
                                 # 生成檔案名稱
                                 invoice_no = record.get('invoice_no', record_id)
                                 invoice_date = record.get('invoice_date', '')
                                 if invoice_date:
-                                    filename = f"{self.username}_{invoice_date}_{invoice_no}.xlsx"
+                                    filename = f"運費發票明細_{self.username}_{invoice_date}_{invoice_no}.xlsx"
                                 else:
-                                    filename = f"{self.username}_{invoice_no}.xlsx"
-                                
+                                    filename = f"運費發票明細_{self.username}_{invoice_no}.xlsx"
+
                                 # 保存檔案
                                 file_path = self.download_dir / filename
                                 wb.save(file_path)
                                 wb.close()
-                                
+
                                 downloaded_files = [str(file_path)]
                                 safe_print(f"✅ 成功從 data-fileblob 生成 Excel: {filename}")
                                 safe_print(f"📁 檔案大小: {file_path.stat().st_size:,} bytes")
                                 safe_print(f"📋 數據行數: {len(data_array)} 行，欄數: {len(data_array[0]) if data_array else 0} 欄")
-                                
+
                                 return downloaded_files
-                            
+
                             else:
                                 safe_print("❌ data-fileblob 中沒有找到數據陣列")
-                                
+
                         except json.JSONDecodeError as json_e:
                             safe_print(f"❌ 解析 data-fileblob JSON 失敗: {json_e}")
                             safe_print(f"   原始數據前500字元: {fileblob_data[:500]}")
-                        
+
                         except Exception as excel_e:
                             safe_print(f"❌ 生成 Excel 檔案失敗: {excel_e}")
-                    
+
                     else:
                         safe_print("❌ data-fileblob 屬性為空")
-                        
+
                 else:
                     safe_print("⚠️ 未找到包含 data-fileblob 的元素")
                     raise Exception("未找到 data-fileblob 元素")
-                    
+
             except Exception as blob_e:
                 safe_print(f"❌ data-fileblob 提取失敗: {blob_e}")
                 safe_print("🔄 程式無法提取數據，請檢查頁面是否正確載入")

@@ -238,8 +238,8 @@ class UnpaidScraper(BaseScraper):
                 adjusted_width = min(max_length + 2, 50)  # 最大寬度限制
                 ws.column_dimensions[column_letter].width = adjusted_width
 
-            # 生成檔案名稱：{帳號}_FREIGHT_{結束時間}.xlsx
-            filename = f"{self.username}_FREIGHT_{self.end_date}.xlsx"
+            # 生成檔案名稱：運費未請款明細_{帳號}_{結束時間}.xlsx
+            filename = f"運費未請款明細_{self.username}_{self.end_date}.xlsx"
             file_path = self.download_dir / filename
 
             # 保存檔案
