@@ -6,17 +6,15 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 
-
 from .browser_utils import init_chrome_browser
 from .constants import ErrorMessages, Messages, RetryConfig, Selectors, Timeouts
-from .exceptions import IframeError, LoginError, NavigationError, AdvancedScrapingError
+from .diagnostic_manager import DiagnosticManager, get_diagnostic_manager
+from .exceptions import AdvancedScrapingError, IframeError, LoginError, NavigationError
 from .logging_config import LoggingContext, ScrapingLogger, get_logger
 from .smart_wait import SmartWaiter, create_smart_waiter
-from .diagnostic_manager import get_diagnostic_manager, DiagnosticManager
 
 
 class ImprovedBaseScraper(ABC):
@@ -82,7 +80,12 @@ class ImprovedBaseScraper(ABC):
         self.temp_dir = base_dir / "temp"
 
         # 建立目錄
-        for directory in [self.download_dir, self.reports_dir, self.logs_dir, self.temp_dir]:
+        for directory in [
+            self.download_dir,
+            self.reports_dir,
+            self.logs_dir,
+            self.temp_dir,
+        ]:
             directory.mkdir(parents=True, exist_ok=True)
 
     def _init_browser(self) -> None:
@@ -101,10 +104,10 @@ class ImprovedBaseScraper(ABC):
                 context={
                     "operation": "browser_initialization",
                     "headless": self.headless,
-                    "download_dir": str(self.download_dir)
+                    "download_dir": str(self.download_dir),
                 },
                 capture_screenshot=False,  # 瀏覽器未初始化，無法截圖
-                capture_page_source=False
+                capture_page_source=False,
             )
 
             enhanced_error = AdvancedScrapingError(
@@ -112,15 +115,15 @@ class ImprovedBaseScraper(ABC):
                 details={"headless": self.headless},
                 context={
                     "download_dir": str(self.download_dir),
-                    "diagnostic_report": diagnostic_report
+                    "diagnostic_report": diagnostic_report,
                 },
                 recovery_suggestions=[
                     "檢查 Chrome 瀏覽器安裝狀態",
                     "驗證 ChromeDriver 版本相容性",
                     "確認 .env 檔案中的 Chrome 路徑設定",
-                    "檢查系統資源是否充足"
+                    "檢查系統資源是否充足",
                 ],
-                error_code="BROWSER_INIT_FAILED"
+                error_code="BROWSER_INIT_FAILED",
             )
             raise enhanced_error from e
 
@@ -147,6 +150,8 @@ class ImprovedBaseScraper(ABC):
                     self.logger.info(f"開始第 {attempt} 次登入嘗試", username=self.username)
 
                     # 載入登入頁面
+                    assert self.driver is not None, "Driver not initialized"
+                    assert self.waiter is not None, "Waiter not initialized"
                     self.driver.get(self.url)
                     self.waiter.wait_for_page_load(Timeouts.PAGE_LOAD)
 
@@ -160,13 +165,16 @@ class ImprovedBaseScraper(ABC):
                         self.logger.warning(Messages.CAPTCHA_MANUAL)
                         # 等待手動輸入
                         self.waiter.wait_for_condition(
-                            lambda: self._check_login_success(), Timeouts.CAPTCHA_INPUT_WAIT
+                            lambda: self._check_login_success(),
+                            Timeouts.CAPTCHA_INPUT_WAIT,
                         )
 
                     # 提交登入
                     if self._submit_login_form():
                         if self._check_login_success():
-                            self.logger.log_operation_success("登入", username=self.username)
+                            self.logger.log_operation_success(
+                                "登入", username=self.username
+                            )
                             return True
 
                     self.logger.warning(
@@ -183,18 +191,18 @@ class ImprovedBaseScraper(ABC):
                         "max_retries": max_retries,
                         "username": self.username,
                         "url": self.url,
-                        "headless": self.headless
+                        "headless": self.headless,
                     },
                     capture_screenshot=True,
                     capture_page_source=True,
-                    driver=self.driver
+                    driver=self.driver,
                 )
 
                 self.logger.error(
                     f"登入嘗試 {attempt} 發生異常",
                     exc_info=True,
                     error=str(e),
-                    diagnostic_report=diagnostic_report
+                    diagnostic_report=diagnostic_report,
                 )
 
                 if attempt == max_retries:
@@ -204,48 +212,46 @@ class ImprovedBaseScraper(ABC):
                         details={
                             "username": self.username,
                             "retry_count": attempt,
-                            "last_error": str(e)
+                            "last_error": str(e),
                         },
                         context={
                             "url": self.url,
                             "headless": self.headless,
-                            "diagnostic_report": diagnostic_report
+                            "diagnostic_report": diagnostic_report,
                         },
                         recovery_suggestions=[
                             "檢查網路連線狀態",
                             "驗證帳號密碼是否正確",
                             "確認登入頁面是否正常載入",
-                            "檢查 Chrome 版本相容性"
+                            "檢查 Chrome 版本相容性",
                         ],
-                        error_code="LOGIN_RETRY_EXHAUSTED"
+                        error_code="LOGIN_RETRY_EXHAUSTED",
                     )
                     raise enhanced_error from e
 
         # 所有重試都失敗，建立增強型異常
         enhanced_error = AdvancedScrapingError(
             ErrorMessages.LOGIN_MAX_RETRIES,
-            details={
-                "username": self.username,
-                "retry_count": max_retries
-            },
+            details={"username": self.username, "retry_count": max_retries},
             context={
                 "url": self.url,
                 "headless": self.headless,
-                "final_url": self.driver.current_url if self.driver else None
+                "final_url": self.driver.current_url if self.driver else None,
             },
             recovery_suggestions=[
                 "檢查帳號密碼是否正確",
                 "驗證網路連線狀態",
                 "確認登入頁面是否正常載入",
-                "檢查驗證碼處理邏輯"
+                "檢查驗證碼處理邏輯",
             ],
-            error_code="LOGIN_ALL_RETRIES_FAILED"
+            error_code="LOGIN_ALL_RETRIES_FAILED",
         )
         raise enhanced_error
 
     def _fill_login_form(self) -> bool:
         """填寫登入表單"""
         try:
+            assert self.waiter is not None, "Waiter not initialized"
             # 使用智慧等待填寫表單
             username_success = self.waiter.safe_send_keys(
                 By.CSS_SELECTOR, Selectors.LOGIN_USERNAME, self.username
@@ -269,9 +275,10 @@ class ImprovedBaseScraper(ABC):
         處理驗證碼
 
         Returns:
-            識別出的驗證碼，或 None 如果無法識別
+            識別出的驗證碼,或 None 如果無法識別
         """
         try:
+            assert self.waiter is not None, "Waiter not initialized"
             # 等待驗證碼元素出現
             if not self.waiter.wait_for_element_present(
                 By.CSS_SELECTOR, Selectors.LOGIN_CAPTCHA, Timeouts.SHORT_WAIT
@@ -284,7 +291,9 @@ class ImprovedBaseScraper(ABC):
             if captcha_code:
                 self.logger.info(Messages.CAPTCHA_DETECTED, captcha=captcha_code)
                 # 填入驗證碼
-                self.waiter.safe_send_keys(By.CSS_SELECTOR, Selectors.LOGIN_CAPTCHA, captcha_code)
+                self.waiter.safe_send_keys(
+                    By.CSS_SELECTOR, Selectors.LOGIN_CAPTCHA, captcha_code
+                )
                 return captcha_code
 
             return None
@@ -303,6 +312,7 @@ class ImprovedBaseScraper(ABC):
         """
         import re
 
+        assert self.driver is not None, "Driver not initialized"
         self.logger.info("🔍 開始自動偵測驗證碼...", operation="captcha_detection")
 
         try:
@@ -310,15 +320,13 @@ class ImprovedBaseScraper(ABC):
             try:
                 red_elements = self.driver.find_elements(
                     By.CSS_SELECTOR,
-                    "*[style*='color: red'], *[color='red'], font[color='red']"
+                    "*[style*='color: red'], *[color='red'], font[color='red']",
                 )
                 for element in red_elements:
                     text = element.text.strip()
-                    if re.match(r'^[A-Z0-9]{4}$', text):
+                    if re.match(r"^[A-Z0-9]{4}$", text):
                         self.logger.info(
-                            "✅ 從紅色字體偵測到驗證碼",
-                            captcha=text,
-                            method="red_font"
+                            "✅ 從紅色字體偵測到驗證碼", captcha=text, method="red_font"
                         )
                         return text
             except Exception:
@@ -326,13 +334,11 @@ class ImprovedBaseScraper(ABC):
 
             # 方法2: 尋找包含 "識別碼:" 的文字
             page_text = self.driver.page_source
-            match = re.search(r'識別碼[：:]\s*([A-Z0-9]{4})', page_text)
+            match = re.search(r"識別碼[：:]\s*([A-Z0-9]{4})", page_text)
             if match:
                 captcha = match.group(1)
                 self.logger.info(
-                    "✅ 從識別碼標籤偵測到驗證碼",
-                    captcha=captcha,
-                    method="label_search"
+                    "✅ 從識別碼標籤偵測到驗證碼", captcha=captcha, method="label_search"
                 )
                 return captcha
 
@@ -343,37 +349,56 @@ class ImprovedBaseScraper(ABC):
                     cells = table.find_elements(By.TAG_NAME, "td")
                     for cell in cells:
                         text = cell.text.strip()
-                        if re.match(r'^[A-Z0-9]{4}$', text) and text not in ['POST', 'GET', 'HTTP']:
+                        if re.match(r"^[A-Z0-9]{4}$", text) and text not in [
+                            "POST",
+                            "GET",
+                            "HTTP",
+                        ]:
                             self.logger.info(
-                                "✅ 從表格偵測到驗證碼",
-                                captcha=text,
-                                method="table_search"
+                                "✅ 從表格偵測到驗證碼", captcha=text, method="table_search"
                             )
                             return text
             except Exception:
                 pass
 
             # 方法4: 搜尋頁面中的4碼英數字（排除常見干擾詞）
-            matches = re.findall(r'\b[A-Z0-9]{4}\b', page_text)
+            matches = re.findall(r"\b[A-Z0-9]{4}\b", page_text)
             excluded_words = {
-                'POST', 'GET', 'HTTP', 'HTML', 'HEAD', 'BODY', 'FORM',
-                '2012', '2013', '2014', '2015', '2016', '2017', '2018',
-                '2019', '2020', '2021', '2022', '2023', '2024', '2025'
+                "POST",
+                "GET",
+                "HTTP",
+                "HTML",
+                "HEAD",
+                "BODY",
+                "FORM",
+                "2012",
+                "2013",
+                "2014",
+                "2015",
+                "2016",
+                "2017",
+                "2018",
+                "2019",
+                "2020",
+                "2021",
+                "2022",
+                "2023",
+                "2024",
+                "2025",
             }
 
             if matches:
                 for match in matches:
                     # 過濾年份和常見網頁詞彙
-                    if match in excluded_words:
+                    matched_str: str = str(match)  # 確保型別為 str
+                    if matched_str in excluded_words:
                         continue
-                    if match.isdigit() and 1900 <= int(match) <= 2100:
+                    if matched_str.isdigit() and 1900 <= int(matched_str) <= 2100:
                         continue
                     self.logger.info(
-                        "✅ 從頁面找到可能的驗證碼",
-                        captcha=match,
-                        method="page_scan"
+                        "✅ 從頁面找到可能的驗證碼", captcha=matched_str, method="page_scan"
                     )
-                    return match
+                    return matched_str
 
             # 方法5: 最後嘗試查找所有可見文字元素
             try:
@@ -382,11 +407,14 @@ class ImprovedBaseScraper(ABC):
                     try:
                         if element.is_displayed():
                             text = element.text.strip()
-                            if re.match(r'^[A-Z0-9]{4}$', text) and text not in excluded_words:
+                            if (
+                                re.match(r"^[A-Z0-9]{4}$", text)
+                                and text not in excluded_words
+                            ):
                                 self.logger.info(
                                     "✅ 從可見元素偵測到驗證碼",
                                     captcha=text,
-                                    method="visible_elements"
+                                    method="visible_elements",
                                 )
                                 return text
                     except Exception:
@@ -402,13 +430,14 @@ class ImprovedBaseScraper(ABC):
                 "⚠️ 驗證碼自動偵測過程中發生錯誤",
                 exc_info=True,
                 error=str(e),
-                operation="captcha_detection"
+                operation="captcha_detection",
             )
             return None
 
     def _submit_login_form(self) -> bool:
         """提交登入表單"""
         try:
+            assert self.waiter is not None, "Waiter not initialized"
             return self.waiter.safe_click(By.CSS_SELECTOR, Selectors.LOGIN_SUBMIT)
         except Exception as e:
             self.logger.error("登入表單提交失敗", exc_info=True, error=str(e))
@@ -417,6 +446,7 @@ class ImprovedBaseScraper(ABC):
     def _check_login_success(self) -> bool:
         """檢查登入是否成功 - 針對WEDI系統優化"""
         try:
+            assert self.driver is not None, "Driver not initialized"
             # 首先處理可能的 Alert 彈窗
             try:
                 alert = self.driver.switch_to.alert
@@ -442,6 +472,7 @@ class ImprovedBaseScraper(ABC):
 
             # 等待頁面穩定
             import time
+
             time.sleep(1.0)
 
             # 檢查 URL 是否包含 WEDI 主選單
@@ -449,8 +480,10 @@ class ImprovedBaseScraper(ABC):
             self.logger.info(f"📍 當前 URL: {current_url}", current_url=current_url)
 
             # WEDI 系統登入成功後會導向 wedimainmenu.asp
-            if 'wedimainmenu.asp' in current_url:
-                self.logger.log_operation_success("登入成功，已進入主選單", current_url=current_url)
+            if "wedimainmenu.asp" in current_url:
+                self.logger.log_operation_success(
+                    "登入成功，已進入主選單", current_url=current_url
+                )
                 return True
 
             # 備用檢查：查找主選單相關元素
@@ -488,6 +521,7 @@ class ImprovedBaseScraper(ABC):
             NavigationError: 導航失敗
             IframeError: iframe 切換失敗
         """
+        assert self.driver is not None, "Driver not initialized"
         try:
             with LoggingContext(self.logger, "導航到查詢頁面"):
                 # 步驟1: 點擊查詢作業選單
@@ -496,11 +530,12 @@ class ImprovedBaseScraper(ABC):
                     raise NavigationError(
                         "找不到查詢作業選單",
                         current_url=self.driver.current_url,
-                        target_element="查詢作業"
+                        target_element="查詢作業",
                     )
 
                 # 等待頁面響應
                 import time
+
                 time.sleep(2.0)
                 self.logger.info("✅ 已點擊查詢作業選單")
 
@@ -510,7 +545,7 @@ class ImprovedBaseScraper(ABC):
                     raise NavigationError(
                         "找不到查件頁面連結",
                         current_url=self.driver.current_url,
-                        target_element="查件頁面"
+                        target_element="查件頁面",
                     )
 
                 # 等待頁面載入
@@ -523,7 +558,7 @@ class ImprovedBaseScraper(ABC):
                     raise IframeError(
                         ErrorMessages.IFRAME_NOT_FOUND,
                         iframe_name="datamain",
-                        current_url=self.driver.current_url
+                        current_url=self.driver.current_url,
                     )
 
                 self.logger.info("✅ 已切換到 datamain iframe，準備處理數據")
@@ -539,21 +574,22 @@ class ImprovedBaseScraper(ABC):
                 context={
                     "operation": "navigate_to_query",
                     "current_url": self.driver.current_url if self.driver else None,
-                    "username": self.username
+                    "username": self.username,
                 },
                 capture_screenshot=True,
                 capture_page_source=True,
-                driver=self.driver
+                driver=self.driver,
             )
 
             raise NavigationError(
                 f"導航過程發生未預期錯誤: {str(e)}",
                 current_url=self.driver.current_url,
-                diagnostic_report=diagnostic_report
+                diagnostic_report=diagnostic_report,
             ) from e
 
     def _switch_to_main_iframe(self) -> bool:
         """切換到主要 iframe"""
+        assert self.waiter is not None, "Waiter not initialized"
         return self.waiter.wait_for_iframe_available(
             (By.CSS_SELECTOR, Selectors.DATA_MAIN_IFRAME), Timeouts.IFRAME_SWITCH
         )
@@ -562,7 +598,10 @@ class ImprovedBaseScraper(ABC):
         """點擊查詢作業連結"""
         # 使用文字內容尋找連結
         try:
-            elements = self.driver.find_elements(By.PARTIAL_LINK_TEXT, Selectors.QUERY_OPERATIONS)
+            assert self.driver is not None, "Driver not initialized"
+            elements = self.driver.find_elements(
+                By.PARTIAL_LINK_TEXT, Selectors.QUERY_OPERATIONS
+            )
             if elements:
                 elements[0].click()
                 return True
@@ -573,6 +612,7 @@ class ImprovedBaseScraper(ABC):
     def _click_query_page(self) -> bool:
         """點擊查件頁面連結 - 移植自原始 BaseScraper"""
         try:
+            assert self.driver is not None, "Driver not initialized"
             # 使用完全匹配的連結文字
             elements = self.driver.find_elements(By.LINK_TEXT, "查件頁面")
             if elements:
@@ -628,19 +668,27 @@ class LoginManager:
     def perform_login(self, url: str, username: str, password: str) -> bool:
         """執行登入流程"""
         # 登入邏輯的具體實作
+        raise NotImplementedError("Subclasses must implement perform_login")
 
 
 class DownloadManager:
     """下載管理器 - 單一職責類別"""
 
     def __init__(
-        self, driver: WebDriver, waiter: SmartWaiter, download_dir: str, logger: ScrapingLogger
+        self,
+        driver: WebDriver,
+        waiter: SmartWaiter,
+        download_dir: str,
+        logger: ScrapingLogger,
     ):
         self.driver = driver
         self.waiter = waiter
         self.download_dir = download_dir
         self.logger = logger
 
-    def download_file(self, download_link: str, expected_filename: str) -> Optional[str]:
+    def download_file(
+        self, download_link: str, expected_filename: str
+    ) -> Optional[str]:
         """下載檔案"""
         # 下載邏輯的具體實作
+        raise NotImplementedError("Subclasses must implement download_file")

@@ -156,6 +156,8 @@ tramp
 .mypy_cache/
 .dmypy.json
 dmypy.json
+mypy-html/
+mypy-report/
 
 # Pyre type checker
 .pyre/

@@ -487,6 +487,94 @@ temp/                 # 暫存檔案
 - 自動設定必要的環境變數
 - 簡化使用者執行流程
 
+## 程式碼品質保證 🔍
+
+### 型別檢查 (Type Checking)
+
+本專案使用 **mypy** 進行靜態型別檢查，確保程式碼的型別安全性和可維護性。
+
+#### 執行型別檢查
+
+**快速檢查**：
+```bash
+# 執行型別檢查（僅顯示錯誤）
+./scripts/type_check.sh
+```
+
+**生成詳細報告**：
+```bash
+# 生成 HTML 和文字格式的覆蓋率報告
+./scripts/type_check.sh --report
+```
+
+#### 查看型別覆蓋率報告
+
+執行 `--report` 選項後，會生成兩種格式的報告：
+
+**HTML 報告**（推薦）：
+```bash
+# 在瀏覽器中開啟 HTML 報告
+open mypy-html/index.html        # macOS
+start mypy-html/index.html       # Windows
+xdg-open mypy-html/index.html    # Linux
+```
+
+HTML 報告提供：
+- 📊 各模組的型別精確度百分比
+- 🔍 逐行顯示型別註解狀態
+- 🎯 快速定位需要改進的程式碼
+
+**文字報告**：
+```bash
+# 查看文字格式的摘要報告
+cat mypy-report/index.txt
+```
+
+#### 目前型別覆蓋率狀態
+
+**總體覆蓋率**: 81.9% (目標: 90%)
+
+**表現優異的模組** (100% 精確度):
+- `src.core.constants` - 常數定義
+- `src.core.type_aliases` - 型別別名定義
+
+**需要改進的模組**:
+- `src.scrapers.freight_scraper` - 31.26% 不精確 (主要改進目標)
+- `src.core.multi_account_manager` - 26.79% 不精確
+- `src.core.diagnostic_manager` - 25.59% 不精確
+
+#### 開發時的最佳實踐
+
+**1. 在提交前執行型別檢查**：
+```bash
+./scripts/type_check.sh
+```
+
+**2. 使用明確的型別註解**：
+```python
+# ✅ 好的做法
+def process_data(username: str, data: dict[str, Any]) -> bool:
+    return True
+
+# ❌ 避免過度使用 Any
+def process_data(data):  # 缺少型別註解
+    return True
+```
+
+**3. 參考現有的高品質模組**：
+- 查看 `src/core/constants.py` 和 `src/core/type_aliases.py` 的範例
+
+**4. CI/CD 整合**：
+- Pre-commit hook 會自動執行型別檢查
+- 確保所有提交都通過 mypy 驗證
+
+#### 持續改進計劃
+
+專案團隊致力於持續提升型別覆蓋率：
+- 🎯 短期目標: 達到 90% 型別精確度
+- 🚀 長期目標: 對核心模組啟用 strict mode
+- 📚 定期審查和更新型別註解
+
 ## 技術特色
 
 ### 智能導航系統

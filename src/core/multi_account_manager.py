@@ -10,20 +10,23 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Callable, Optional
 
 from ..utils.windows_encoding_utils import safe_print
-from .logging_config import get_logger, log_with_safe_print
+from .logging_config import ScrapingLogger, get_logger, log_with_safe_print
+from .type_aliases import AccountConfig
 
 
 class MultiAccountManager:
     """多帳號管理器"""
 
-    def __init__(self, config_file="accounts.json"):
-        self.config_file = config_file
-        self.logger = get_logger("multi_account_manager")
+    def __init__(self, config_file: str = "accounts.json") -> None:
+        self.config_file: str = config_file
+        self.logger: ScrapingLogger = get_logger("multi_account_manager")
+        self.config: dict[str, Any] = {}
         self.load_config()
 
-    def load_config(self):
+    def load_config(self) -> None:
         """載入設定檔"""
         if not os.path.exists(self.config_file):
             raise FileNotFoundError(
@@ -38,27 +41,29 @@ class MultiAccountManager:
             if "accounts" not in self.config or not self.config["accounts"]:
                 raise ValueError("⛔ 設定檔中沒有找到帳號資訊！")
 
-            self.logger.info(f"✅ 已載入設定檔: {self.config_file}", config_file=self.config_file)
+            self.logger.info(
+                f"✅ 已載入設定檔: {self.config_file}", config_file=self.config_file
+            )
 
         except json.JSONDecodeError as e:
             raise ValueError(f"⛔ 設定檔格式錯誤: {e}")
         except Exception as e:
             raise RuntimeError(f"⛔ 載入設定檔失敗: {e}")
 
-    def get_enabled_accounts(self):
+    def get_enabled_accounts(self) -> list[AccountConfig]:
         """取得啟用的帳號列表"""
         return [acc for acc in self.config["accounts"] if acc.get("enabled", True)]
 
     def run_all_accounts(
         self,
-        scraper_class,
-        headless_override=None,
-        progress_callback=None,
-        start_date=None,
-        end_date=None,
-        start_month=None,
-        end_month=None,
-    ):
+        scraper_class: type,
+        headless_override: Optional[bool] = None,
+        progress_callback: Optional[Callable[[str], None]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        start_month: Optional[str] = None,
+        end_month: Optional[str] = None,
+    ) -> list[AccountConfig]:
         """
         執行所有啟用的帳號
 
@@ -80,7 +85,10 @@ class MultiAccountManager:
             progress_callback(f"🚀 開始執行多帳號 WEDI 自動下載 (共 {len(accounts)} 個帳號)")
         else:
             self.logger.info("=" * 80)
-            self.logger.info(f"🚀 開始執行多帳號 WEDI 自動下載 (共 {len(accounts)} 個帳號)", total_accounts=len(accounts))
+            self.logger.info(
+                f"🚀 開始執行多帳號 WEDI 自動下載 (共 {len(accounts)} 個帳號)",
+                total_accounts=len(accounts),
+            )
             self.logger.info("=" * 80)
 
         for i, account in enumerate(accounts, 1):
@@ -91,7 +99,12 @@ class MultiAccountManager:
             if progress_callback:
                 progress_callback(progress_msg)
             else:
-                self.logger.info(progress_msg, account_index=i, total_accounts=len(accounts), username=username)
+                self.logger.info(
+                    progress_msg,
+                    account_index=i,
+                    total_accounts=len(accounts),
+                    username=username,
+                )
                 self.logger.info("-" * 50)
 
             try:
@@ -126,7 +139,14 @@ class MultiAccountManager:
 
                 scraper = scraper_class(**scraper_kwargs)
 
-                result = scraper.run_full_process()
+                downloads = scraper.run_full_process()
+                # 包裝成字典格式
+                result = {
+                    "success": True,
+                    "username": username,
+                    "downloads": downloads,
+                    "message": "無資料可下載" if not downloads else None,
+                }
                 results.append(result)
 
                 # 帳號間暫停一下避免過於頻繁
@@ -140,12 +160,14 @@ class MultiAccountManager:
                 else:
                     self.logger.error(error_msg, username=username, error=str(e))
 
-                results.append({
-                    "success": False,
-                    "username": username,
-                    "error": str(e),
-                    "downloads": []
-                })
+                results.append(
+                    {
+                        "success": False,
+                        "username": username,
+                        "error": str(e),
+                        "downloads": [],
+                    }
+                )
 
         # 分析結果
         successful_accounts = [r for r in results if r["success"]]
@@ -153,11 +175,13 @@ class MultiAccountManager:
         total_downloads = sum(len(r["downloads"]) for r in successful_accounts)
 
         # 顯示統計
-        self.logger.log_data_info("執行統計",
-                                  total_accounts=len(results),
-                                  successful_accounts=len(successful_accounts),
-                                  failed_accounts=len(failed_accounts),
-                                  total_downloads=total_downloads)
+        self.logger.log_data_info(
+            "執行統計",
+            total_accounts=len(results),
+            successful_accounts=len(successful_accounts),
+            failed_accounts=len(failed_accounts),
+            total_downloads=total_downloads,
+        )
 
         if successful_accounts:
             self.logger.info("✅ 成功帳號詳情:")
@@ -165,16 +189,24 @@ class MultiAccountManager:
                 username = result["username"]
                 download_count = len(result["downloads"])
                 if result.get("message") == "無資料可下載":
-                    self.logger.info(f"   🔸 {username}: 無資料可下載", username=username, status="no_data")
+                    self.logger.info(
+                        f"   🔸 {username}: 無資料可下載", username=username, status="no_data"
+                    )
                 else:
-                    self.logger.info(f"   🔸 {username}: 成功下載 {download_count} 個檔案", username=username, download_count=download_count)
+                    self.logger.info(
+                        f"   🔸 {username}: 成功下載 {download_count} 個檔案",
+                        username=username,
+                        download_count=download_count,
+                    )
 
         if failed_accounts:
             self.logger.error("❌ 失敗帳號詳情:", failed_count=len(failed_accounts))
             for result in failed_accounts:
                 username = result["username"]
                 error = result.get("error", "未知錯誤")
-                self.logger.error(f"   🔸 {username}: {error}", username=username, error=error)
+                self.logger.error(
+                    f"   🔸 {username}: {error}", username=username, error=error
+                )
 
         # 保存詳細報告
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -191,7 +223,9 @@ class MultiAccountManager:
                 "success": result["success"],
                 "username": result["username"],
                 "downloads": result["downloads"],
-                "records": len(result.get("records", [])) if result.get("records") else 0,
+                "records": len(result.get("records", []))
+                if result.get("records")
+                else 0,
             }
             if "error" in result:
                 clean_result["error"] = result["error"]
@@ -214,5 +248,9 @@ class MultiAccountManager:
                 indent=2,
             )
 
-        self.logger.log_operation_success("詳細報告保存", report_file=str(report_file), total_accounts=len(results))
+        self.logger.log_operation_success(
+            "詳細報告保存", report_file=str(report_file), total_accounts=len(results)
+        )
         self.logger.info("=" * 80)
+
+        return results

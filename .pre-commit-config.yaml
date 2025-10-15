@@ -34,9 +34,14 @@ repos:
           - types-python-dateutil
           - typing-extensions
           - openpyxl
+          - types-openpyxl
           - beautifulsoup4
+          - types-beautifulsoup4
           - selenium
-        args: [--config-file=pyproject.toml]
+          - lxml
+          - aiohttp
+          - python-dotenv
+        args: [--config-file=pyproject.toml, src/]
         pass_filenames: false
         files: ^src/
 

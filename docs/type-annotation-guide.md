@@ -11,6 +11,7 @@
 5. [錯誤處理](#錯誤處理)
 6. [測試型別提示](#測試型別提示)
 7. [IDE 配置](#ide-配置)
+8. [Code Review Checklist](#code-review-checklist)
 
 ## 基本原則
 
@@ -611,6 +612,185 @@ ErrorCallback: TypeAlias = Callable[[Exception], None]
 RecordDict: TypeAlias = dict[str, str]
 ResultList: TypeAlias = list[dict[str, Any]]
 ```
+
+## Code Review Checklist
+
+### 型別註解審查清單 ✅
+
+在審查包含型別註解的程式碼時，請確認以下事項：
+
+#### 1. 基礎檢查 📋
+
+- [ ] **完整性**
+  - [ ] 所有公開函數和方法都有型別註解
+  - [ ] 參數型別明確指定
+  - [ ] 返回型別明確指定（包括 `-> None`）
+  - [ ] 類別屬性有型別註解（如適用）
+
+- [ ] **mypy 檢查**
+  - [ ] 執行過 `mypy` 檢查且無錯誤
+  - [ ] 未使用 `# type: ignore` 繞過檢查（除非有充分理由並附註釋）
+
+#### 2. 型別品質 🎯
+
+- [ ] **精確度**
+  - [ ] 避免過度使用 `Any` 型別
+  - [ ] 使用具體型別而非泛型（如 `list[str]` 優於 `list`）
+  - [ ] 複雜型別使用 `TypeAlias` 或 `TypedDict`
+  - [ ] Union 型別按複雜度排序（簡單型別在前）
+
+- [ ] **一致性**
+  - [ ] 使用 `src/core/type_aliases.py` 定義的型別別名
+  - [ ] 型別註解風格與專案其他部分一致
+  - [ ] 命名慣例遵循專案標準
+
+- [ ] **可讀性**
+  - [ ] 型別註解清晰易懂
+  - [ ] 複雜型別有適當註釋說明
+  - [ ] 避免過度複雜的巢狀型別
+
+#### 3. Optional 處理 🔍
+
+- [ ] **None 檢查**
+  - [ ] `Optional[T]` 型別有適當的 None 檢查
+  - [ ] 使用 `assert` 語句處理明確不為 None 的情況
+  - [ ] 避免在 Optional 值上直接調用方法（需先檢查）
+
+- [ ] **預設值**
+  - [ ] Optional 參數有合理的預設值（通常為 `None`）
+  - [ ] 預設值型別與參數型別一致
+
+```python
+# ✅ 好的做法
+def process(data: Optional[str] = None) -> bool:
+    if data is None:
+        return False
+    return len(data) > 0
+
+# ❌ 避免
+def process(data: Optional[str] = None) -> bool:
+    return len(data) > 0  # 可能 AttributeError
+```
+
+#### 4. 第三方型別 📚
+
+- [ ] **WebDriver**
+  - [ ] Selenium WebDriver 使用正確型別
+  - [ ] WebElement 型別正確標註
+  - [ ] By 策略使用 `str` 型別（配合 `# type: ignore`）
+
+- [ ] **其他第三方**
+  - [ ] BeautifulSoup Tag/PageElement 有適當型別處理
+  - [ ] datetime 型別使用一致
+  - [ ] 第三方 stub 缺失時有適當處理
+
+#### 5. 函數設計 🔧
+
+- [ ] **參數設計**
+  - [ ] 參數順序合理（必需參數在前，可選參數在後）
+  - [ ] 使用 keyword-only 參數（`*,` 語法）改善可讀性
+  - [ ] 避免過多參數（考慮使用 dataclass 或 TypedDict）
+
+- [ ] **返回值**
+  - [ ] 返回型別單一且明確
+  - [ ] 避免返回 `Union[多種型別]`（除非有充分理由）
+  - [ ] Generator/Iterator 有正確型別註解
+
+#### 6. 錯誤處理 ⚠️
+
+- [ ] **異常型別**
+  - [ ] 自訂異常類別有型別註解
+  - [ ] 異常處理邏輯考慮型別安全
+
+- [ ] **容錯機制**
+  - [ ] 型別窄化（Type narrowing）正確使用
+  - [ ] isinstance 檢查適當使用
+
+#### 7. 測試考量 🧪
+
+- [ ] **測試覆蓋**
+  - [ ] 型別相關的邊界情況有測試
+  - [ ] None 情況有測試覆蓋
+  - [ ] 型別錯誤情況有測試（如適用）
+
+- [ ] **Mock 型別**
+  - [ ] Mock 物件型別正確標註
+  - [ ] 測試夾具有型別提示
+
+#### 8. 文檔一致性 📝
+
+- [ ] **Docstrings**
+  - [ ] Docstrings 與型別註解一致
+  - [ ] 參數說明與型別註解匹配
+  - [ ] 返回值說明與返回型別匹配
+
+- [ ] **註釋**
+  - [ ] 複雜型別有解釋註釋
+  - [ ] 特殊型別處理有說明（如 `# type: ignore` 原因）
+
+#### 9. 效能考量 ⚡
+
+- [ ] **型別檢查開銷**
+  - [ ] 避免在熱路徑中使用過於複雜的型別
+  - [ ] 大型 Union 型別考慮重構
+
+- [ ] **執行時期檢查**
+  - [ ] 避免不必要的 isinstance 檢查
+  - [ ] 型別保護（Type guard）使用適當
+
+#### 10. 向後相容性 🔄
+
+- [ ] **API 相容性**
+  - [ ] 型別註解不破壞現有 API
+  - [ ] 參數型別放寬（如適用）符合 Liskov 原則
+  - [ ] 返回型別收窄（如適用）符合 Liskov 原則
+
+### 快速審查清單 ⚡
+
+**5 分鐘快速檢查**（針對小型 PR）：
+
+1. ✅ mypy 檢查通過
+2. ✅ 所有公開方法有型別註解
+3. ✅ 無過度使用 `Any`
+4. ✅ Optional 型別有 None 檢查
+5. ✅ 型別註解與 docstrings 一致
+
+### 常見問題速查 ❓
+
+**Q: 何時可以使用 `Any` 型別？**
+A: 僅在以下情況：
+- 處理真正動態的資料（如 JSON 解析）
+- 第三方庫缺少 type stubs
+- 暫時性解決方案（需要 TODO 註釋）
+
+**Q: 何時需要使用 `# type: ignore`？**
+A: 僅在以下情況：
+- 第三方庫 type stubs 錯誤
+- mypy 的已知限制
+- 需要附上原因註釋
+
+**Q: Optional vs Union[T, None]？**
+A: 使用 `Optional[T]`（更簡潔易讀）
+
+**Q: 如何處理複雜的巢狀型別？**
+A: 使用 `TypeAlias` 或 `TypedDict` 提取為獨立型別
+
+### 審查重點優先級 🎯
+
+**高優先級**（必須檢查）：
+1. mypy 檢查通過
+2. 所有公開 API 有型別註解
+3. Optional 型別有 None 檢查
+
+**中優先級**（應該檢查）：
+4. 避免過度使用 `Any`
+5. 型別註解與 docstrings 一致
+6. 使用專案型別別名
+
+**低優先級**（建議檢查）：
+7. 複雜型別有註釋
+8. 私有方法有型別註解
+9. 型別效能考量
 
 ## 資源連結
 

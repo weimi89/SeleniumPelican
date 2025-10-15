@@ -10,10 +10,18 @@ import traceback
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, DefaultDict, Dict, List, Optional, TypedDict, Union
 
 from .exceptions import ScrapingError
 from .logging_config import get_logger
+
+
+# 型別別名：統計資料結構
+class ExceptionStatDict(TypedDict):
+    count: int
+    first_seen: Optional[datetime]
+    last_seen: Optional[datetime]
+    details: List[Dict[str, Any]]
 
 
 class DiagnosticInfo:
@@ -39,16 +47,23 @@ class DiagnosticInfo:
         import os
 
         relevant_env_vars = [
-            "PYTHONPATH", "CHROME_BINARY_PATH", "CHROMEDRIVER_PATH",
-            "PYTHONUNBUFFERED", "DEBUG", "ENVIRONMENT"
+            "PYTHONPATH",
+            "CHROME_BINARY_PATH",
+            "CHROMEDRIVER_PATH",
+            "PYTHONUNBUFFERED",
+            "DEBUG",
+            "ENVIRONMENT",
         ]
 
-        return {var: os.environ.get(var) for var in relevant_env_vars if os.environ.get(var)}
+        return {
+            var: os.environ.get(var) for var in relevant_env_vars if os.environ.get(var)
+        }
 
     def _get_memory_usage(self) -> Optional[Dict[str, float]]:
         """取得記憶體使用狀況"""
         try:
             import psutil
+
             process = psutil.Process()
             memory_info = process.memory_info()
             return {
@@ -63,12 +78,14 @@ class DiagnosticInfo:
         """取得呼叫堆疊"""
         stack = []
         for frame_info in traceback.extract_stack()[:-1]:  # 排除當前函數
-            stack.append({
-                "filename": frame_info.filename,
-                "line_number": frame_info.lineno,
-                "function_name": frame_info.name,
-                "code": frame_info.line,
-            })
+            stack.append(
+                {
+                    "filename": frame_info.filename,
+                    "line_number": frame_info.lineno,
+                    "function_name": frame_info.name,
+                    "code": frame_info.line,
+                }
+            )
         return stack
 
     def to_dict(self) -> Dict[str, Any]:
@@ -85,15 +102,17 @@ class ExceptionStatistics:
     """異常統計類別"""
 
     def __init__(self):
-        self.stats = defaultdict(lambda: {
-            "count": 0,
-            "first_seen": None,
-            "last_seen": None,
-            "details": []
-        })
-        self.total_exceptions = 0
+        self.stats: DefaultDict[str, ExceptionStatDict] = defaultdict(
+            lambda: {"count": 0, "first_seen": None, "last_seen": None, "details": []}
+        )
+        self.total_exceptions: int = 0
 
-    def record_exception(self, exception_type: str, message: str, context: Dict[str, Any] = None):
+    def record_exception(
+        self,
+        exception_type: str,
+        message: str,
+        context: Optional[Dict[str, Any]] = None,
+    ):
         """記錄異常"""
         now = datetime.now()
         self.total_exceptions += 1
@@ -106,11 +125,9 @@ class ExceptionStatistics:
         stat["last_seen"] = now
 
         # 只保留最近 10 個詳細記錄以節省記憶體
-        stat["details"].append({
-            "timestamp": now.isoformat(),
-            "message": message,
-            "context": context or {}
-        })
+        stat["details"].append(
+            {"timestamp": now.isoformat(), "message": message, "context": context or {}}
+        )
         if len(stat["details"]) > 10:
             stat["details"].pop(0)
 
@@ -125,17 +142,19 @@ class ExceptionStatistics:
     def _get_top_exceptions(self, limit: int = 5) -> List[Dict[str, Any]]:
         """取得最常見的異常"""
         sorted_exceptions = sorted(
-            self.stats.items(),
-            key=lambda x: x[1]["count"],
-            reverse=True
+            self.stats.items(), key=lambda x: x[1]["count"], reverse=True
         )
 
         return [
             {
                 "type": exc_type,
                 "count": data["count"],
-                "first_seen": data["first_seen"].isoformat() if data["first_seen"] else None,
-                "last_seen": data["last_seen"].isoformat() if data["last_seen"] else None,
+                "first_seen": data["first_seen"].isoformat()
+                if data["first_seen"]
+                else None,
+                "last_seen": data["last_seen"].isoformat()
+                if data["last_seen"]
+                else None,
             }
             for exc_type, data in sorted_exceptions[:limit]
         ]
@@ -159,7 +178,7 @@ class DiagnosticManager:
     def capture_exception(
         self,
         exception: Exception,
-        context: Dict[str, Any] = None,
+        context: Optional[Dict[str, Any]] = None,
         capture_screenshot: bool = False,
         capture_page_source: bool = False,
         driver=None,
@@ -181,7 +200,7 @@ class DiagnosticManager:
         exception_id = self._generate_exception_id()
 
         # 建立診斷報告
-        report = {
+        report: Dict[str, Any] = {
             "exception_id": exception_id,
             "session_id": self.session_id,
             "exception": {
@@ -196,7 +215,8 @@ class DiagnosticManager:
 
         # 處理 ScrapingError 的特殊資訊
         if isinstance(exception, ScrapingError):
-            report["exception"]["details"] = getattr(exception, "details", {})
+            exception_dict: Dict[str, Any] = report["exception"]  # type: ignore[assignment]
+            exception_dict["details"] = getattr(exception, "details", {})
 
         # 擷取螢幕截圖
         if capture_screenshot and driver:
@@ -219,9 +239,7 @@ class DiagnosticManager:
 
         # 記錄統計
         self.statistics.record_exception(
-            type(exception).__name__,
-            str(exception),
-            context
+            type(exception).__name__, str(exception), context
         )
 
         # 記錄到日誌
@@ -230,7 +248,7 @@ class DiagnosticManager:
             exception_id=exception_id,
             exception_type=type(exception).__name__,
             report_path=str(report_path),
-            exc_info=True
+            exc_info=True,
         )
 
         return str(report_path)
@@ -269,7 +287,9 @@ class DiagnosticManager:
 
         return page_source_path
 
-    def _save_diagnostic_report(self, report: Dict[str, Any], exception_id: str) -> Path:
+    def _save_diagnostic_report(
+        self, report: Dict[str, Any], exception_id: str
+    ) -> Path:
         """儲存診斷報告"""
         report_path = self.log_dir / f"{exception_id}_diagnostic.json"
 
@@ -351,10 +371,14 @@ class DiagnosticManager:
 
         if not include_sensitive:
             # 移除敏感資訊
-            if "environment" in debug_info["diagnostic_info"]:
-                env = debug_info["diagnostic_info"]["environment"]
+            diagnostic_info_dict: Dict[str, Any] = debug_info["diagnostic_info"]  # type: ignore[assignment]
+            if "environment" in diagnostic_info_dict:
+                env: Dict[str, Any] = diagnostic_info_dict["environment"]  # type: ignore[assignment]
                 for key in list(env.keys()):
-                    if any(sensitive in key.lower() for sensitive in ["password", "key", "token"]):
+                    if any(
+                        sensitive in key.lower()
+                        for sensitive in ["password", "key", "token"]
+                    ):
                         env[key] = "***REDACTED***"
 
         return debug_info
@@ -384,7 +408,7 @@ def get_diagnostic_manager(log_dir: Optional[Path] = None) -> DiagnosticManager:
 
 def capture_exception_with_diagnostics(
     exception: Exception,
-    context: Dict[str, Any] = None,
+    context: Optional[Dict[str, Any]] = None,
     capture_screenshot: bool = False,
     capture_page_source: bool = False,
     driver=None,
@@ -404,9 +428,5 @@ def capture_exception_with_diagnostics(
     """
     diagnostic_manager = get_diagnostic_manager()
     return diagnostic_manager.capture_exception(
-        exception,
-        context,
-        capture_screenshot,
-        capture_page_source,
-        driver
+        exception, context, capture_screenshot, capture_page_source, driver
     )

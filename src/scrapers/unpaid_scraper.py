@@ -11,9 +11,10 @@ import argparse
 import re
 import time
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 import openpyxl
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from selenium.webdriver.common.by import By
 
 from src.core.constants import Timeouts
@@ -33,16 +34,21 @@ class UnpaidScraper(ImprovedBaseScraper):
     繼承 BaseScraper 實作運費未請款明細查詢
     """
 
-    def __init__(self, username, password, headless=False, download_base_dir="downloads"):
+    def __init__(
+        self, username, password, headless=False, download_base_dir="downloads"
+    ):
         # 構建 URL 並調用父類構造函數
         url = "http://wedinlb03.e-can.com.tw/wEDI2012/wedilogin.asp"
-        super().__init__(url=url, username=username, password=password, headless=headless)
+        super().__init__(
+            url=url, username=username, password=password, headless=headless
+        )
 
         # 設定結束時間為當日
         self.end_date = datetime.now().strftime("%Y%m%d")
 
-    def navigate_to_unpaid_freight_page(self):
+    def navigate_to_unpaid_freight_page(self) -> bool:
         """導航到運費未請款明細頁面"""
+        assert self.driver is not None, "WebDriver must be initialized"
         self.logger.info("🧭 導航至運費未請款明細頁面...")
 
         try:
@@ -62,13 +68,25 @@ class UnpaidScraper(ImprovedBaseScraper):
                         if (
                             ("運費" in link_text and "未請款" in link_text)
                             or ("未請款" in link_text and "明細" in link_text)
-                            or ("運費" in link_text and "明細" in link_text and "請款" in link_text)
+                            or (
+                                "運費" in link_text
+                                and "明細" in link_text
+                                and "請款" in link_text
+                            )
                         ):
                             unpaid_freight_link = link
-                            self.logger.info(f"   ✅ 找到運費未請款明細連結: {link_text}", link_text=link_text, match_type="unpaid_freight")
+                            self.logger.info(
+                                f"   ✅ 找到運費未請款明細連結: {link_text}",
+                                link_text=link_text,
+                                match_type="unpaid_freight",
+                            )
                             break
                         elif "運費" in link_text and "明細" in link_text:
-                            self.logger.debug(f"   🔍 找到運費相關連結: {link_text}", link_text=link_text, match_type="freight_related")
+                            self.logger.debug(
+                                f"   🔍 找到運費相關連結: {link_text}",
+                                link_text=link_text,
+                                match_type="freight_related",
+                            )
                 except Exception:
                     continue
 
@@ -83,7 +101,9 @@ class UnpaidScraper(ImprovedBaseScraper):
                 # 嘗試驗證頁面是否包含運費未請款功能
                 page_text = self.driver.page_source
                 if "運費" in page_text and ("未請款" in page_text or "明細" in page_text):
-                    self.logger.info("✅ 頁面包含運費未請款功能，繼續流程", fallback_method="page_content_check")
+                    self.logger.info(
+                        "✅ 頁面包含運費未請款功能，繼續流程", fallback_method="page_content_check"
+                    )
                     return True
                 else:
                     self.logger.error("❌ 頁面不包含運費未請款功能", page_check="failed")
@@ -97,29 +117,32 @@ class UnpaidScraper(ImprovedBaseScraper):
                     "operation": "navigate_to_unpaid_freight_page",
                     "username": self.username,
                     "current_url": self.driver.current_url if self.driver else None,
-                    "links_found": len(self.driver.find_elements(By.TAG_NAME, "a")) if self.driver else 0
+                    "links_found": len(self.driver.find_elements(By.TAG_NAME, "a"))
+                    if self.driver
+                    else 0,
                 },
                 capture_screenshot=True,
                 capture_page_source=True,
-                driver=self.driver
+                driver=self.driver,
             )
 
             self.logger.log_operation_failure(
-                "導航到運費未請款明細頁面",
-                e,
-                diagnostic_report=diagnostic_report
+                "導航到運費未請款明細頁面", e, diagnostic_report=diagnostic_report
             )
             return False
 
-    def set_end_date(self):
+    def set_end_date(self) -> bool:
         """設定結束時間為當日 - 不需要使用者輸入"""
+        assert self.driver is not None, "WebDriver must be initialized"
         self.logger.info("📅 設定結束時間為當日...")
 
         self.logger.info(f"📅 結束時間: {self.end_date}", end_date=self.end_date)
 
         try:
             # 已經在iframe中，嘗試尋找日期輸入框
-            date_inputs = self.driver.find_elements(By.CSS_SELECTOR, 'input[type="text"]')
+            date_inputs = self.driver.find_elements(
+                By.CSS_SELECTOR, 'input[type="text"]'
+            )
 
             if len(date_inputs) >= 1:
                 try:
@@ -129,7 +152,9 @@ class UnpaidScraper(ImprovedBaseScraper):
                     date_inputs[-1].send_keys(self.end_date)
                     self.logger.log_operation_success("設定結束時間", end_date=self.end_date)
                 except Exception as date_error:
-                    self.logger.warning(f"⚠️ 填入結束時間失敗: {date_error}", error=str(date_error))
+                    self.logger.warning(
+                        f"⚠️ 填入結束時間失敗: {date_error}", error=str(date_error)
+                    )
 
                 # 嘗試點擊查詢按鈕
                 query_button_found = False
@@ -143,7 +168,9 @@ class UnpaidScraper(ImprovedBaseScraper):
 
                 for selector in button_selectors:
                     try:
-                        query_button = self.driver.find_element(By.CSS_SELECTOR, selector)
+                        query_button = self.driver.find_element(
+                            By.CSS_SELECTOR, selector
+                        )
                         query_button.click()
                         self.logger.log_operation_success("點擊查詢按鈕", selector=selector)
                         time.sleep(Timeouts.QUERY_SUBMIT)
@@ -167,23 +194,24 @@ class UnpaidScraper(ImprovedBaseScraper):
                     "operation": "set_end_date",
                     "username": self.username,
                     "end_date": self.end_date,
-                    "current_url": self.driver.current_url if self.driver else None
+                    "current_url": self.driver.current_url if self.driver else None,
                 },
                 capture_screenshot=True,
                 capture_page_source=True,
-                driver=self.driver
+                driver=self.driver,
             )
 
             self.logger.warning(
                 f"⚠️ 結束時間設定過程中出現問題，但繼續執行: {e}",
                 error=str(e),
                 continue_execution=True,
-                diagnostic_report=diagnostic_report
+                diagnostic_report=diagnostic_report,
             )
             return True  # 即使失敗也返回True，讓流程繼續
 
-    def extract_table_data_to_excel(self):
+    def extract_table_data_to_excel(self) -> Optional[str]:
         """直接從HTML表格提取數據並轉換為Excel檔案"""
+        assert self.driver is not None, "WebDriver must be initialized"
         self.logger.info("📊 提取表格數據並轉換為Excel...")
 
         try:
@@ -198,11 +226,13 @@ class UnpaidScraper(ImprovedBaseScraper):
             tables = soup.find_all("table")
             self.logger.info(f"   找到 {len(tables)} 個表格", tables_count=len(tables))
 
-            main_table = None
+            main_table: Optional[Tag] = None
             max_rows = 0
 
             # 找到最大的表格（通常是包含數據的主表格）
             for table in tables:
+                if not isinstance(table, Tag):
+                    continue
                 rows = table.find_all("tr")
                 if len(rows) > max_rows:
                     max_rows = len(rows)
@@ -215,11 +245,13 @@ class UnpaidScraper(ImprovedBaseScraper):
             self.logger.info(f"✅ 找到主要數據表格，共 {max_rows} 行", table_rows=max_rows)
 
             # 提取表格數據
-            table_data = []
+            table_data: List[List[str]] = []
             rows = main_table.find_all("tr")
 
             for row_index, row in enumerate(rows):
-                row_data = []
+                if not isinstance(row, Tag):
+                    continue
+                row_data: List[str] = []
                 cells = row.find_all(["td", "th"])
 
                 for cell in cells:
@@ -233,7 +265,11 @@ class UnpaidScraper(ImprovedBaseScraper):
                 if row_data:  # 只添加非空行
                     table_data.append(row_data)
                     if row_index < 5:  # 只顯示前5行的內容用於調試
-                        self.logger.debug(f"   行 {row_index + 1}: {row_data[:5]}...", row_index=row_index + 1, row_preview=row_data[:5])
+                        self.logger.debug(
+                            f"   行 {row_index + 1}: {row_data[:5]}...",
+                            row_index=row_index + 1,
+                            row_preview=row_data[:5],
+                        )
 
             if not table_data:
                 self.logger.error("❌ 表格中沒有找到數據")
@@ -244,6 +280,7 @@ class UnpaidScraper(ImprovedBaseScraper):
             # 創建Excel檔案
             wb = openpyxl.Workbook()
             ws = wb.active
+            assert ws is not None, "Workbook active sheet should not be None"
             ws.title = "運費未請款明細"
 
             # 將數據寫入工作表
@@ -264,9 +301,20 @@ class UnpaidScraper(ImprovedBaseScraper):
                     )
 
             # 自動調整欄寬
+            from openpyxl.cell.cell import Cell
+
             for column in ws.columns:
                 max_length = 0
-                column_letter = column[0].column_letter
+                # 取得第一個 Cell 的 column_letter (跳過 MergedCell)
+                column_letter = None
+                for cell in column:
+                    if isinstance(cell, Cell) and hasattr(cell, "column_letter"):
+                        column_letter = cell.column_letter
+                        break
+
+                if column_letter is None:
+                    continue
+
                 for cell in column:
                     try:
                         if len(str(cell.value)) > max_length:
@@ -288,11 +336,13 @@ class UnpaidScraper(ImprovedBaseScraper):
             rows_count = len(table_data)
             cols_count = len(table_data[0]) if table_data else 0
 
-            self.logger.log_operation_success("生成運費未請款明細Excel",
-                                            filename=filename,
-                                            file_size_bytes=file_size,
-                                            rows_count=rows_count,
-                                            cols_count=cols_count)
+            self.logger.log_operation_success(
+                "生成運費未請款明細Excel",
+                filename=filename,
+                file_size_bytes=file_size,
+                rows_count=rows_count,
+                cols_count=cols_count,
+            )
 
             return str(file_path)
 
@@ -306,11 +356,13 @@ class UnpaidScraper(ImprovedBaseScraper):
                     "end_date": self.end_date,
                     "download_dir": str(self.download_dir),
                     "current_url": self.driver.current_url if self.driver else None,
-                    "page_source_available": bool(self.driver and hasattr(self.driver, 'page_source'))
+                    "page_source_available": bool(
+                        self.driver and hasattr(self.driver, "page_source")
+                    ),
                 },
                 capture_screenshot=True,
                 capture_page_source=True,
-                driver=self.driver
+                driver=self.driver,
             )
 
             self.logger.log_operation_failure(
@@ -318,17 +370,21 @@ class UnpaidScraper(ImprovedBaseScraper):
                 e,
                 diagnostic_report=diagnostic_report,
                 username=self.username,
-                end_date=self.end_date
+                end_date=self.end_date,
             )
             return None
 
-    def run_full_process(self):
+    def run_full_process(self) -> List[str]:
         """執行完整的自動化流程"""
-        all_downloads = []
+        all_downloads: List[str] = []
 
         try:
             self.logger.info("=" * 60)
-            self.logger.info(f"📊 開始執行 WEDI 運費未請款明細下載流程 (帳號: {self.username})", username=self.username, process="unpaid_freight")
+            self.logger.info(
+                f"📊 開始執行 WEDI 運費未請款明細下載流程 (帳號: {self.username})",
+                username=self.username,
+                process="unpaid_freight",
+            )
             self.logger.info("=" * 60)
 
             # 1. 瀏覽器已在 __init__ 中初始化
@@ -336,35 +392,20 @@ class UnpaidScraper(ImprovedBaseScraper):
             # 2. 登入
             login_success = self.login()
             if not login_success:
-                self.logger.log_operation_failure("登入", "登入失敗", username=self.username)
-                return {
-                    "success": False,
-                    "username": self.username,
-                    "error": "登入失敗",
-                    "downloads": [],
-                }
+                self.logger.log_operation_failure("登入", Exception("登入失敗"))
+                return []
 
             # 3. 導航到查詢頁面（基礎導航）
             nav_success = self.navigate_to_query()
             if not nav_success:
-                self.logger.log_operation_failure("基礎導航", "導航失敗", username=self.username)
-                return {
-                    "success": False,
-                    "username": self.username,
-                    "error": "導航失敗",
-                    "downloads": [],
-                }
+                self.logger.log_operation_failure("基礎導航", Exception("導航失敗"))
+                return []
 
             # 4. 導航到運費未請款明細頁面
             unpaid_nav_success = self.navigate_to_unpaid_freight_page()
             if not unpaid_nav_success:
-                self.logger.log_operation_failure("運費未請款明細頁面導航", "頁面導航失敗", username=self.username)
-                return {
-                    "success": False,
-                    "username": self.username,
-                    "error": "運費未請款明細頁面導航失敗",
-                    "downloads": [],
-                }
+                self.logger.log_operation_failure("運費未請款明細頁面導航", Exception("頁面導航失敗"))
+                return []
 
             # 5. 設定結束時間（當日）
             self.set_end_date()
@@ -374,26 +415,23 @@ class UnpaidScraper(ImprovedBaseScraper):
 
             if excel_file:
                 all_downloads.append(excel_file)
-                self.logger.log_operation_success("運費未請款明細下載完成", username=self.username, files_downloaded=len(all_downloads))
+                self.logger.log_operation_success(
+                    "運費未請款明細下載完成",
+                    username=self.username,
+                    files_downloaded=len(all_downloads),
+                )
             else:
-                self.logger.warning(f"⚠️ 帳號 {self.username} 沒有找到可下載的數據", username=self.username, status="no_data")
-                return {
-                    "success": True,
-                    "username": self.username,
-                    "message": "無資料可下載",
-                    "downloads": [],
-                }
+                self.logger.warning(
+                    f"⚠️ 帳號 {self.username} 沒有找到可下載的數據",
+                    username=self.username,
+                    status="no_data",
+                )
 
-            return {"success": True, "username": self.username, "downloads": all_downloads}
+            return all_downloads
 
         except Exception as e:
-            self.logger.log_operation_failure("流程執行", e, username=self.username)
-            return {
-                "success": False,
-                "username": self.username,
-                "error": str(e),
-                "downloads": all_downloads,
-            }
+            self.logger.log_operation_failure("流程執行", e)
+            return all_downloads
         finally:
             self.close()
 
@@ -419,7 +457,8 @@ def main():
 
         manager = MultiAccountManager("accounts.json")
         manager.run_all_accounts(
-            scraper_class=UnpaidScraper, headless_override=args.headless if args.headless else None
+            scraper_class=UnpaidScraper,
+            headless_override=args.headless if args.headless else None,
         )
 
         return 0
@@ -431,7 +470,9 @@ def main():
         logger.error("⛔ 使用者中斷執行", error_type="KeyboardInterrupt")
         return 1
     except Exception as e:
-        logger.error(f"⛔ 未知錯誤: {e}", error=str(e), error_type=type(e).__name__, exc_info=True)
+        logger.error(
+            f"⛔ 未知錯誤: {e}", error=str(e), error_type=type(e).__name__, exc_info=True
+        )
         return 1
 
 

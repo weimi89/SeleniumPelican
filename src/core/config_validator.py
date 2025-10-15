@@ -28,8 +28,16 @@ ACCOUNTS_JSON_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "username": {"type": "string", "minLength": 1, "description": "使用者帳號名稱"},
-                    "password": {"type": "string", "minLength": 1, "description": "使用者密碼"},
+                    "username": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "使用者帳號名稱",
+                    },
+                    "password": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "使用者密碼",
+                    },
                     "enabled": {"type": "boolean", "description": "帳號是否啟用"},
                 },
                 "required": ["username", "password", "enabled"],
@@ -89,7 +97,9 @@ class ConfigValidator:
         self.env_file = self.project_root / ".env"
         self.env_example_file = self.project_root / ".env.example"
 
-    def validate_accounts_json(self, accounts_path: Optional[str] = None) -> Tuple[bool, List[str]]:
+    def validate_accounts_json(
+        self, accounts_path: Optional[str] = None
+    ) -> Tuple[bool, List[str]]:
         """
         驗證 accounts.json 檔案
 
@@ -147,7 +157,9 @@ class ConfigValidator:
         errors = []
 
         # 檢查是否至少有一個啟用的帳號
-        enabled_accounts = [acc for acc in data["accounts"] if acc.get("enabled", False)]
+        enabled_accounts = [
+            acc for acc in data["accounts"] if acc.get("enabled", False)
+        ]
         if not enabled_accounts:
             errors.append("至少需要一個啟用的帳號 (enabled: true)")
 
@@ -168,9 +180,7 @@ class ConfigValidator:
 
             # 檢查是否使用預設範例密碼
             if password in ["您的密碼1", "您的密碼2", "您的密碼3", "your_password"]:
-                errors.append(
-                    f"帳號 #{i+1} ({account['username']}) 仍使用範例密碼，請更換為實際密碼"
-                )
+                errors.append(f"帳號 #{i+1} ({account['username']}) 仍使用範例密碼，請更換為實際密碼")
 
         # 檢查下載目錄設定
         download_dir = data["settings"]["download_base_dir"]
@@ -187,7 +197,9 @@ class ConfigValidator:
 
         return errors
 
-    def validate_env_file(self, env_path: Optional[str] = None) -> Tuple[bool, List[str]]:
+    def validate_env_file(
+        self, env_path: Optional[str] = None
+    ) -> Tuple[bool, List[str]]:
         """
         驗證 .env 檔案
 
@@ -332,7 +344,11 @@ class ConfigValidator:
         Returns:
             配置摘要字典
         """
-        summary = {"project_root": str(self.project_root), "files": {}, "validation_status": {}}
+        summary: Dict[str, Any] = {
+            "project_root": str(self.project_root),
+            "files": {},
+            "validation_status": {},
+        }
 
         # 檢查檔案存在狀態
         files_to_check = [
@@ -352,7 +368,10 @@ class ConfigValidator:
         # 執行驗證
         if self.accounts_file.exists():
             success, errors = self.validate_accounts_json()
-            summary["validation_status"]["accounts.json"] = {"valid": success, "errors": errors}
+            summary["validation_status"]["accounts.json"] = {
+                "valid": success,
+                "errors": errors,
+            }
 
         if self.env_file.exists():
             success, errors = self.validate_env_file()
@@ -377,12 +396,20 @@ class ConfigValidator:
 
         for config_file, errors in results.items():
             if not errors:
-                self.logger.log_operation_success(f"{config_file} 驗證", config_file=config_file)
+                self.logger.log_operation_success(
+                    f"{config_file} 驗證", config_file=config_file
+                )
             else:
-                self.logger.error(f"{config_file} 發現 {len(errors)} 個問題", config_file=config_file, error_count=len(errors))
+                self.logger.error(
+                    f"{config_file} 發現 {len(errors)} 個問題",
+                    config_file=config_file,
+                    error_count=len(errors),
+                )
                 if show_details:
                     for i, error in enumerate(errors, 1):
-                        self.logger.error(f"   {i}. {error}", error_detail=error, error_index=i)
+                        self.logger.error(
+                            f"   {i}. {error}", error_detail=error, error_index=i
+                        )
 
         self.logger.info("=" * 50)
         if overall_success:
@@ -394,7 +421,9 @@ class ConfigValidator:
 
 
 def validate_config_files(
-    project_root: Optional[str] = None, create_missing: bool = False, show_report: bool = True
+    project_root: Optional[str] = None,
+    create_missing: bool = False,
+    show_report: bool = True,
 ) -> bool:
     """
     驗證配置檔案的便利函數
@@ -433,6 +462,8 @@ if __name__ == "__main__":
     create_missing = "--create" in sys.argv
     quiet = "--quiet" in sys.argv
 
-    success = validate_config_files(create_missing=create_missing, show_report=not quiet)
+    success = validate_config_files(
+        create_missing=create_missing, show_report=not quiet
+    )
 
     sys.exit(0 if success else 1)
