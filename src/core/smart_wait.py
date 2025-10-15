@@ -18,10 +18,12 @@ from .constants import Timeouts
 class SmartWaiter:
     """智慧等待管理器"""
 
-    def __init__(self, driver: WebDriver, default_timeout: float = Timeouts.DEFAULT_WAIT):
+    def __init__(
+        self, driver: WebDriver, default_timeout: float = Timeouts.DEFAULT_WAIT
+    ):
         self.driver = driver
         self.default_timeout = default_timeout
-        self.wait = WebDriverWait(driver, default_timeout)
+        self._waiter = WebDriverWait(driver, default_timeout)
 
     def wait(self, seconds: float) -> None:
         """
@@ -31,9 +33,12 @@ class SmartWaiter:
             seconds: 等待的秒數
         """
         import time
+
         time.sleep(seconds)
 
-    def wait_for_element_present(self, by: By, value: str, timeout: Optional[float] = None) -> bool:
+    def wait_for_element_present(
+        self, by: str, value: str, timeout: Optional[float] = None
+    ) -> bool:
         """
         等待元素出現在 DOM 中
 
@@ -49,12 +54,14 @@ class SmartWaiter:
         wait = WebDriverWait(self.driver, timeout)
 
         try:
-            wait.until(EC.presence_of_element_located((by, value)))
+            wait.until(EC.presence_of_element_located((by, value)))  # type: ignore[arg-type]
             return True
         except TimeoutException:
             return False
 
-    def wait_for_element_visible(self, by: By, value: str, timeout: Optional[float] = None) -> bool:
+    def wait_for_element_visible(
+        self, by: str, value: str, timeout: Optional[float] = None
+    ) -> bool:
         """
         等待元素可見
 
@@ -70,13 +77,13 @@ class SmartWaiter:
         wait = WebDriverWait(self.driver, timeout)
 
         try:
-            wait.until(EC.visibility_of_element_located((by, value)))
+            wait.until(EC.visibility_of_element_located((by, value)))  # type: ignore[arg-type]
             return True
         except TimeoutException:
             return False
 
     def wait_for_element_clickable(
-        self, by: By, value: str, timeout: Optional[float] = None
+        self, by: str, value: str, timeout: Optional[float] = None
     ) -> bool:
         """
         等待元素可點擊
@@ -93,13 +100,13 @@ class SmartWaiter:
         wait = WebDriverWait(self.driver, timeout)
 
         try:
-            wait.until(EC.element_to_be_clickable((by, value)))
+            wait.until(EC.element_to_be_clickable((by, value)))  # type: ignore[arg-type]
             return True
         except TimeoutException:
             return False
 
     def wait_for_text_present(
-        self, by: By, value: str, text: str, timeout: Optional[float] = None
+        self, by: str, value: str, text: str, timeout: Optional[float] = None
     ) -> bool:
         """
         等待指定文字出現在元素中
@@ -117,12 +124,14 @@ class SmartWaiter:
         wait = WebDriverWait(self.driver, timeout)
 
         try:
-            wait.until(EC.text_to_be_present_in_element((by, value), text))
+            wait.until(EC.text_to_be_present_in_element((by, value), text))  # type: ignore[arg-type]
             return True
         except TimeoutException:
             return False
 
-    def wait_for_url_contains(self, partial_url: str, timeout: Optional[float] = None) -> bool:
+    def wait_for_url_contains(
+        self, partial_url: str, timeout: Optional[float] = None
+    ) -> bool:
         """
         等待 URL 包含指定字串
 
@@ -155,7 +164,9 @@ class SmartWaiter:
         timeout = timeout or Timeouts.PAGE_LOAD
 
         def page_loaded():
-            return self.driver.execute_script("return document.readyState") == "complete"
+            return (
+                self.driver.execute_script("return document.readyState") == "complete"
+            )
 
         return self.wait_for_condition(page_loaded, timeout)
 
@@ -241,7 +252,9 @@ class SmartWaiter:
 
             # 過濾掉臨時檔案
             completed_files = [
-                f for f in files if not f.endswith(".crdownload") and not f.endswith(".tmp")
+                f
+                for f in files
+                if not f.endswith(".crdownload") and not f.endswith(".tmp")
             ]
 
             if not completed_files:
@@ -250,32 +263,29 @@ class SmartWaiter:
             if expected_filename:
                 return expected_filename in completed_files
 
-            # 如果沒有指定檔名，返回最新的檔案
-            if completed_files:
-                latest_file = max(
-                    completed_files, key=lambda f: os.path.getctime(os.path.join(download_dir, f))
-                )
-                return latest_file
-
-            return False
+            # 如果沒有指定檔名，檢查是否有完成的檔案
+            return len(completed_files) > 0
 
         if self.wait_for_condition(download_completed, timeout, poll_frequency=1.0):
             files = os.listdir(download_dir)
             completed_files = [
-                f for f in files if not f.endswith(".crdownload") and not f.endswith(".tmp")
+                f
+                for f in files
+                if not f.endswith(".crdownload") and not f.endswith(".tmp")
             ]
 
             if expected_filename and expected_filename in completed_files:
                 return os.path.join(download_dir, expected_filename)
             elif completed_files:
                 latest_file = max(
-                    completed_files, key=lambda f: os.path.getctime(os.path.join(download_dir, f))
+                    completed_files,
+                    key=lambda f: os.path.getctime(os.path.join(download_dir, f)),
                 )
                 return os.path.join(download_dir, latest_file)
 
         return None
 
-    def safe_click(self, by: By, value: str, timeout: Optional[float] = None) -> bool:
+    def safe_click(self, by: str, value: str, timeout: Optional[float] = None) -> bool:
         """
         安全點擊元素（等待可點擊後再點擊）
 
@@ -304,7 +314,7 @@ class SmartWaiter:
 
     def safe_send_keys(
         self,
-        by: By,
+        by: str,
         value: str,
         text: str,
         clear_first: bool = True,
@@ -335,7 +345,9 @@ class SmartWaiter:
         return False
 
 
-def create_smart_waiter(driver: WebDriver, timeout: Optional[float] = None) -> SmartWaiter:
+def create_smart_waiter(
+    driver: WebDriver, timeout: Optional[float] = None
+) -> SmartWaiter:
     """
     工廠函數：建立智慧等待器實例
 
@@ -352,7 +364,7 @@ def create_smart_waiter(driver: WebDriver, timeout: Optional[float] = None) -> S
 
 # 便利函數，用於快速等待操作
 def quick_wait_and_click(
-    driver: WebDriver, by: By, value: str, timeout: Optional[float] = None
+    driver: WebDriver, by: str, value: str, timeout: Optional[float] = None
 ) -> bool:
     """快速等待並點擊元素"""
     waiter = SmartWaiter(driver, timeout or Timeouts.SHORT_WAIT)
@@ -360,7 +372,7 @@ def quick_wait_and_click(
 
 
 def quick_wait_and_input(
-    driver: WebDriver, by: By, value: str, text: str, timeout: Optional[float] = None
+    driver: WebDriver, by: str, value: str, text: str, timeout: Optional[float] = None
 ) -> bool:
     """快速等待並輸入文字"""
     waiter = SmartWaiter(driver, timeout or Timeouts.SHORT_WAIT)

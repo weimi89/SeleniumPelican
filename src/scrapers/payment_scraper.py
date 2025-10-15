@@ -10,10 +10,9 @@
 import argparse
 import json
 import time
-
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import openpyxl
 from selenium.common.exceptions import (
@@ -32,6 +31,7 @@ from src.core.constants import Timeouts
 # 新架構模組
 from src.core.improved_base_scraper import ImprovedBaseScraper
 from src.core.multi_account_manager import MultiAccountManager
+from src.core.type_aliases import DownloadResult, RecordDict, RecordList
 
 # 向後兼容
 from src.utils.windows_encoding_utils import check_pythonunbuffered
@@ -70,7 +70,9 @@ class PaymentScraper(ImprovedBaseScraper):
         url = "http://wedinlb03.e-can.com.tw/wEDI2012/wedilogin.asp"
 
         # 調用新的父類構造函數
-        super().__init__(url=url, username=username, password=password, headless=headless)
+        super().__init__(
+            url=url, username=username, password=password, headless=headless
+        )
 
         # 代收貨款查詢特有的屬性
         self.start_date = start_date
@@ -80,26 +82,34 @@ class PaymentScraper(ImprovedBaseScraper):
         # 注意：下載目錄已由父類 ImprovedBaseScraper 設置
         # 不需要再次覆蓋，保持與父類一致
 
-    def set_date_range(self):
+    def set_date_range(self) -> bool:
         """設定查詢日期範圍 - 使用wedi_selenium_scraper.py的邏輯"""
+        assert self.driver is not None, "WebDriver must be initialized"
         self.logger.info("📅 設定日期範圍...", operation="set_date_range")
 
-        # 使用指定的日期範圍，如果沒有指定則使用預設值（當日）
+        # 使用指定的日期範圍，如果沒有指定則使用預設值(當日)
         if self.start_date and self.end_date:
-            start_date = self.start_date.strftime("%Y%m%d")
-            end_date = self.end_date.strftime("%Y%m%d")
+            # start_date 和 end_date 已經是 YYYYMMDD 格式的字串
+            start_date = self.start_date
+            end_date = self.end_date
         else:
-            # 預設值：當日
+            # 預設值:當日
             today = datetime.now()
             start_date = today.strftime("%Y%m%d")
             end_date = today.strftime("%Y%m%d")
 
-        self.logger.info(f"📅 查詢日期範圍: {start_date} ~ {end_date}",
-                        start_date=start_date, end_date=end_date, operation="date_range_config")
+        self.logger.info(
+            f"📅 查詢日期範圍: {start_date} ~ {end_date}",
+            start_date=start_date,
+            end_date=end_date,
+            operation="date_range_config",
+        )
 
         try:
             # 已經在iframe中，嘗試尋找日期輸入框
-            date_inputs = self.driver.find_elements(By.CSS_SELECTOR, 'input[type="text"]')
+            date_inputs = self.driver.find_elements(
+                By.CSS_SELECTOR, 'input[type="text"]'
+            )
 
             if len(date_inputs) >= 2:
                 try:
@@ -113,7 +123,9 @@ class PaymentScraper(ImprovedBaseScraper):
                     date_inputs[1].send_keys(end_date)
                     self.logger.log_operation_success("設定結束日期", end_date=end_date)
                 except Exception as date_error:
-                    self.logger.warning("⚠️ 填入日期失敗", error=str(date_error), operation="date_input")
+                    self.logger.warning(
+                        "⚠️ 填入日期失敗", error=str(date_error), operation="date_input"
+                    )
 
                 # 嘗試多種方式尋找查詢按鈕
                 query_button_found = False
@@ -128,7 +140,9 @@ class PaymentScraper(ImprovedBaseScraper):
 
                 for selector in button_selectors:
                     try:
-                        query_button = self.driver.find_element(By.CSS_SELECTOR, selector)
+                        query_button = self.driver.find_element(
+                            By.CSS_SELECTOR, selector
+                        )
                         query_button.click()
                         self.logger.log_operation_success("點擊查詢按鈕", selector=selector)
                         time.sleep(Timeouts.QUERY_SUBMIT)
@@ -142,10 +156,15 @@ class PaymentScraper(ImprovedBaseScraper):
                         continue
 
                 if not query_button_found:
-                    self.logger.warning("⚠️ 未找到查詢按鈕，直接繼續流程", operation="query_button_search")
+                    self.logger.warning(
+                        "⚠️ 未找到查詢按鈕，直接繼續流程", operation="query_button_search"
+                    )
             else:
-                self.logger.warning("⚠️ 未找到日期輸入框，可能不需要設定日期",
-                                  found_inputs=len(date_inputs), operation="date_input_search")
+                self.logger.warning(
+                    "⚠️ 未找到日期輸入框，可能不需要設定日期",
+                    found_inputs=len(date_inputs),
+                    operation="date_input_search",
+                )
 
             return True
 
@@ -157,11 +176,11 @@ class PaymentScraper(ImprovedBaseScraper):
                     "operation": "set_date_range",
                     "username": self.username,
                     "start_date": self.start_date,
-                    "end_date": self.end_date
+                    "end_date": self.end_date,
                 },
                 capture_screenshot=True,
                 capture_page_source=True,
-                driver=self.driver
+                driver=self.driver,
             )
 
             self.logger.warning(
@@ -169,12 +188,13 @@ class PaymentScraper(ImprovedBaseScraper):
                 error=str(e),
                 operation="set_date_range",
                 continue_execution=True,
-                diagnostic_report=diagnostic_report
+                diagnostic_report=diagnostic_report,
             )
             return True  # 即使失敗也返回True，讓流程繼續
 
-    def get_payment_records(self):
+    def get_payment_records(self) -> RecordList:
         """直接在iframe中搜尋代收貨款相關數據 - 使用wedi_selenium_scraper.py的邏輯"""
+        assert self.driver is not None, "WebDriver must be initialized"
         self.logger.info("📊 搜尋當前頁面中的代收貨款數據...", operation="get_payment_records")
 
         records = []
@@ -210,7 +230,9 @@ class PaymentScraper(ImprovedBaseScraper):
                     link_text = link.text.strip()
                     if link_text:
                         # 檢查是否需要排除
-                        should_exclude = any(keyword in link_text for keyword in excluded_keywords)
+                        should_exclude = any(
+                            keyword in link_text for keyword in excluded_keywords
+                        )
 
                         # 更精確的匹配：必須包含「代收貨款」和「匯款明細」
                         is_payment_remittance = (
@@ -227,20 +249,29 @@ class PaymentScraper(ImprovedBaseScraper):
                             )
                             records.append(
                                 {
-                                    "index": i + 1,
+                                    "index": str(i + 1),
                                     "title": link_text,
                                     "payment_no": file_id,
-                                    "link": link,
+                                    "link": link.get_attribute("href") or "",
                                 }
                             )
-                            self.logger.info(f"   ✅ 找到代收貨款匯款明細: {link_text}",
-                                           link_text=link_text, match_type="payment_remittance")
+                            self.logger.info(
+                                f"   ✅ 找到代收貨款匯款明細: {link_text}",
+                                link_text=link_text,
+                                match_type="payment_remittance",
+                            )
                         elif should_exclude:
-                            self.logger.debug(f"   ⏭️ 跳過排除項目: {link_text}",
-                                            link_text=link_text, match_type="excluded")
+                            self.logger.debug(
+                                f"   ⏭️ 跳過排除項目: {link_text}",
+                                link_text=link_text,
+                                match_type="excluded",
+                            )
                         elif "代收" in link_text:
-                            self.logger.debug(f"   ⏭️ 跳過非匯款明細項目: {link_text}",
-                                            link_text=link_text, match_type="non_remittance")
+                            self.logger.debug(
+                                f"   ⏭️ 跳過非匯款明細項目: {link_text}",
+                                link_text=link_text,
+                                match_type="non_remittance",
+                            )
                 except (AttributeError, StaleElementReferenceException):
                     continue
 
@@ -255,9 +286,14 @@ class PaymentScraper(ImprovedBaseScraper):
                         cells = row.find_elements(By.TAG_NAME, "td")
                         for cell in cells:
                             cell_text = cell.text.strip()
-                            if any(keyword in cell_text for keyword in payment_keywords):
-                                self.logger.info(f"   📋 找到表格中的代收貨款數據: {cell_text}",
-                                               cell_text=cell_text, match_type="table_data")
+                            if any(
+                                keyword in cell_text for keyword in payment_keywords
+                            ):
+                                self.logger.info(
+                                    f"   📋 找到表格中的代收貨款數據: {cell_text}",
+                                    cell_text=cell_text,
+                                    match_type="table_data",
+                                )
 
             self.logger.log_data_info("搜尋代收貨款記錄完成", count=len(records))
             return records
@@ -270,23 +306,24 @@ class PaymentScraper(ImprovedBaseScraper):
                     "operation": "get_payment_records",
                     "username": self.username,
                     "current_url": self.driver.current_url if self.driver else None,
-                    "records_found": len(records)
+                    "records_found": len(records),
                 },
                 capture_screenshot=True,
                 capture_page_source=True,
-                driver=self.driver
+                driver=self.driver,
             )
 
             self.logger.log_operation_failure(
-                "搜尋代收貨款數據",
-                e,
-                diagnostic_report=diagnostic_report
+                "搜尋代收貨款數據", e, diagnostic_report=diagnostic_report
             )
             return records
 
-    def download_excel_for_record(self, record):
+    def download_excel_for_record(self, record: RecordDict) -> DownloadResult:
         """為特定記錄下載Excel檔案 - 使用wedi_selenium_scraper.py的完整邏輯"""
-        self.logger.info(f"📥 下載記錄 {record['payment_no']} 的Excel檔案...", operation="download")
+        assert self.driver is not None, "WebDriver must be initialized"
+        self.logger.info(
+            f"📥 下載記錄 {record['payment_no']} 的Excel檔案...", operation="download"
+        )
 
         try:
             # 已經在iframe中，直接查找連結
@@ -321,7 +358,11 @@ class PaymentScraper(ImprovedBaseScraper):
             self.logger.debug(f"   找到 {len(buttons)} 個按鈕:")
             for i, btn in enumerate(buttons[:10]):  # 只顯示前10個
                 try:
-                    text = btn.text or btn.get_attribute("value") or btn.get_attribute("title")
+                    text = (
+                        btn.text
+                        or btn.get_attribute("value")
+                        or btn.get_attribute("title")
+                    )
                     self.logger.info(f"     按鈕 {i+1}: {text}")
                 except (AttributeError, StaleElementReferenceException):
                     pass
@@ -331,7 +372,9 @@ class PaymentScraper(ImprovedBaseScraper):
                 try:
                     inp_type = inp.get_attribute("type")
                     value = inp.get_attribute("value") or inp.text
-                    self.logger.info(f"     Input {i+1}: type='{inp_type}' value='{value}'")
+                    self.logger.info(
+                        f"     Input {i+1}: type='{inp_type}' value='{value}'"
+                    )
                 except (AttributeError, StaleElementReferenceException):
                     pass
 
@@ -342,16 +385,19 @@ class PaymentScraper(ImprovedBaseScraper):
             try:
                 # 使用指定的日期範圍
                 if self.start_date and self.end_date:
-                    start_date = self.start_date.strftime("%Y%m%d")
-                    end_date = self.end_date.strftime("%Y%m%d")
+                    # start_date 和 end_date 已經是 YYYYMMDD 格式的字串
+                    start_date = self.start_date
+                    end_date = self.end_date
                 else:
-                    # 預設值：當日
+                    # 預設值:當日
                     today = datetime.now()
                     start_date = today.strftime("%Y%m%d")
                     end_date = today.strftime("%Y%m%d")
 
                 # 找到日期輸入框
-                date_inputs = self.driver.find_elements(By.CSS_SELECTOR, 'input[type="text"]')
+                date_inputs = self.driver.find_elements(
+                    By.CSS_SELECTOR, 'input[type="text"]'
+                )
                 if len(date_inputs) >= 2:
                     # 填入開始日期
                     date_inputs[0].clear()
@@ -370,7 +416,9 @@ class PaymentScraper(ImprovedBaseScraper):
 
                 # 嘗試點擊查詢按鈕
                 try:
-                    query_button = self.driver.find_element(By.CSS_SELECTOR, 'input[value*="查詢"]')
+                    query_button = self.driver.find_element(
+                        By.CSS_SELECTOR, 'input[value*="查詢"]'
+                    )
                     query_button.click()
                     self.logger.info(f"✅ 已點擊查詢按鈕", operation="search")
                     time.sleep(Timeouts.PAGE_LOAD)  # 等待查詢結果
@@ -386,7 +434,11 @@ class PaymentScraper(ImprovedBaseScraper):
                 self.logger.info(f"   查詢後找到 {len(buttons_after)} 個按鈕:")
                 for i, btn in enumerate(buttons_after[:10]):
                     try:
-                        text = btn.text or btn.get_attribute("value") or btn.get_attribute("title")
+                        text = (
+                            btn.text
+                            or btn.get_attribute("value")
+                            or btn.get_attribute("title")
+                        )
                         self.logger.info(f"     按鈕 {i+1}: {text}")
                     except (AttributeError, StaleElementReferenceException):
                         pass
@@ -396,7 +448,9 @@ class PaymentScraper(ImprovedBaseScraper):
                     try:
                         inp_type = inp.get_attribute("type")
                         value = inp.get_attribute("value") or inp.text
-                        self.logger.info(f"     Input {i+1}: type='{inp_type}' value='{value}'")
+                        self.logger.info(
+                            f"     Input {i+1}: type='{inp_type}' value='{value}'"
+                        )
                     except (AttributeError, StaleElementReferenceException):
                         pass
 
@@ -420,7 +474,8 @@ class PaymentScraper(ImprovedBaseScraper):
                 # 策略1: 原始XPath（JavaScript連結或以4開頭）
                 try:
                     links_xpath1 = self.driver.find_elements(
-                        By.XPATH, "//a[contains(@href, 'javascript:') or starts-with(text(), '4')]"
+                        By.XPATH,
+                        "//a[contains(@href, 'javascript:') or starts-with(text(), '4')]",
                     )
                     payment_links.extend(links_xpath1)
                     self.logger.debug(f"   策略1找到 {len(links_xpath1)} 個連結")
@@ -437,13 +492,19 @@ class PaymentScraper(ImprovedBaseScraper):
                             is_potential_payment = False
                             if link_text:
                                 # 條件1: 長度>6且包含數字
-                                if len(link_text) > 6 and any(c.isdigit() for c in link_text):
+                                if len(link_text) > 6 and any(
+                                    c.isdigit() for c in link_text
+                                ):
                                     is_potential_payment = True
                                 # 條件2: 全數字且長度>8
                                 elif link_text.isdigit() and len(link_text) > 8:
                                     is_potential_payment = True
                                 # 條件3: 包含常見匯款編號模式（數字+字母組合）
-                                elif len(link_text) > 8 and any(c.isdigit() for c in link_text) and any(c.isalpha() for c in link_text):
+                                elif (
+                                    len(link_text) > 8
+                                    and any(c.isdigit() for c in link_text)
+                                    and any(c.isalpha() for c in link_text)
+                                ):
                                     is_potential_payment = True
 
                             if is_potential_payment and link not in payment_links:
@@ -451,7 +512,9 @@ class PaymentScraper(ImprovedBaseScraper):
                                 self.logger.debug(f"   策略2找到可能的匯款編號: {link_text}")
                         except:
                             continue
-                    self.logger.debug(f"   策略2添加了 {len(payment_links) - len(links_xpath1)} 個額外連結")
+                    self.logger.debug(
+                        f"   策略2添加了 {len(payment_links) - len(links_xpath1)} 個額外連結"
+                    )
                 except Exception as e:
                     self.logger.debug(f"   策略2失敗: {e}")
 
@@ -467,7 +530,9 @@ class PaymentScraper(ImprovedBaseScraper):
                                 is_potential_payment = False
                                 if cell_text:
                                     # 條件1: 長度>6且包含數字
-                                    if len(cell_text) > 6 and any(c.isdigit() for c in cell_text):
+                                    if len(cell_text) > 6 and any(
+                                        c.isdigit() for c in cell_text
+                                    ):
                                         is_potential_payment = True
                                     # 條件2: 全數字且長度>8
                                     elif cell_text.isdigit() and len(cell_text) > 8:
@@ -479,15 +544,24 @@ class PaymentScraper(ImprovedBaseScraper):
                                     for cell_link in cell_links:
                                         if cell_link not in payment_links:
                                             payment_links.append(cell_link)
-                                            self.logger.debug(f"   策略3找到表格中的匯款編號: {cell_text}")
+                                            self.logger.debug(
+                                                f"   策略3找到表格中的匯款編號: {cell_text}"
+                                            )
 
                                     # 如果cell本身就是連結（檢查父元素）
                                     if not cell_links:
                                         try:
-                                            if cell.tag_name == "a" or cell.find_element(By.XPATH, "./parent::a"):
+                                            if (
+                                                cell.tag_name == "a"
+                                                or cell.find_element(
+                                                    By.XPATH, "./parent::a"
+                                                )
+                                            ):
                                                 if cell not in payment_links:
                                                     payment_links.append(cell)
-                                                    self.logger.debug(f"   策略3找到cell連結: {cell_text}")
+                                                    self.logger.debug(
+                                                        f"   策略3找到cell連結: {cell_text}"
+                                                    )
                                         except:
                                             pass
                             except:
@@ -501,7 +575,11 @@ class PaymentScraper(ImprovedBaseScraper):
                 seen_hrefs = set()
                 for link in payment_links:
                     try:
-                        href = link.get_attribute("href") or link.get_attribute("onclick") or ""
+                        href = (
+                            link.get_attribute("href")
+                            or link.get_attribute("onclick")
+                            or ""
+                        )
                         if href not in seen_hrefs:
                             unique_payment_links.append(link)
                             seen_hrefs.add(href)
@@ -525,8 +603,11 @@ class PaymentScraper(ImprovedBaseScraper):
                         try:
                             link_text = link.text.strip()
                             # 放寬匯款編號的條件：長度大於6且包含數字
-                            if (link_text and len(link_text) > 6 and
-                                any(c.isdigit() for c in link_text)):
+                            if (
+                                link_text
+                                and len(link_text) > 6
+                                and any(c.isdigit() for c in link_text)
+                            ):
                                 payment_numbers.append(link_text)
                                 self.logger.info(f"   收集匯款編號: {link_text}")
                         except (AttributeError, StaleElementReferenceException):
@@ -548,7 +629,8 @@ class PaymentScraper(ImprovedBaseScraper):
                             # 策略1: 原始XPath（JavaScript連結或以4開頭）
                             try:
                                 links_xpath1 = self.driver.find_elements(
-                                    By.XPATH, "//a[contains(@href, 'javascript:') or starts-with(text(), '4')]"
+                                    By.XPATH,
+                                    "//a[contains(@href, 'javascript:') or starts-with(text(), '4')]",
                                 )
                                 for link in links_xpath1:
                                     if link.text.strip() == payment_no:
@@ -562,13 +644,17 @@ class PaymentScraper(ImprovedBaseScraper):
                             # 策略2: 如果策略1沒找到，搜尋所有包含此匯款編號的連結
                             if not target_link:
                                 try:
-                                    all_links = self.driver.find_elements(By.TAG_NAME, "a")
+                                    all_links = self.driver.find_elements(
+                                        By.TAG_NAME, "a"
+                                    )
                                     for link in all_links:
                                         try:
                                             link_text = link.text.strip()
                                             if link_text == payment_no:
                                                 target_link = link
-                                                self.logger.debug(f"   策略2找到目標連結: {payment_no}")
+                                                self.logger.debug(
+                                                    f"   策略2找到目標連結: {payment_no}"
+                                                )
                                                 break
                                         except:
                                             continue
@@ -578,17 +664,23 @@ class PaymentScraper(ImprovedBaseScraper):
                             # 策略3: 如果前面都沒找到，在表格中搜尋
                             if not target_link:
                                 try:
-                                    tables = self.driver.find_elements(By.TAG_NAME, "table")
+                                    tables = self.driver.find_elements(
+                                        By.TAG_NAME, "table"
+                                    )
                                     for table in tables:
                                         cells = table.find_elements(By.TAG_NAME, "td")
                                         for cell in cells:
                                             try:
                                                 cell_text = cell.text.strip()
                                                 if cell_text == payment_no:
-                                                    cell_links = cell.find_elements(By.TAG_NAME, "a")
+                                                    cell_links = cell.find_elements(
+                                                        By.TAG_NAME, "a"
+                                                    )
                                                     if cell_links:
                                                         target_link = cell_links[0]
-                                                        self.logger.debug(f"   策略3找到目標連結: {payment_no}")
+                                                        self.logger.debug(
+                                                            f"   策略3找到目標連結: {payment_no}"
+                                                        )
                                                         break
                                             except:
                                                 continue
@@ -604,7 +696,7 @@ class PaymentScraper(ImprovedBaseScraper):
                                 link_href = target_link.get_attribute("href")
                                 self.logger.info(f"🔗 連結href: {link_href}")
 
-                                if "javascript:" in link_href:
+                                if link_href and "javascript:" in link_href:
                                     # JavaScript連結需要在新視窗中執行
                                     # 使用Ctrl+Click或者執行JavaScript來開新視窗
                                     self.driver.execute_script(
@@ -631,13 +723,18 @@ class PaymentScraper(ImprovedBaseScraper):
 
                                         # 切換回原始iframe
                                         try:
-                                            iframe = WebDriverWait(self.driver, 10).until(
+                                            iframe = WebDriverWait(
+                                                self.driver, 10
+                                            ).until(
                                                 EC.presence_of_element_located(
                                                     (By.NAME, "datamain")
                                                 )
                                             )
                                             self.driver.switch_to.frame(iframe)
-                                        except (TimeoutException, NoSuchElementException):
+                                        except (
+                                            TimeoutException,
+                                            NoSuchElementException,
+                                        ):
                                             pass
 
                                         # 重新執行查詢和點擊目標連結
@@ -652,7 +749,7 @@ class PaymentScraper(ImprovedBaseScraper):
                                             try:
                                                 new_links = self.driver.find_elements(
                                                     By.XPATH,
-                                                    "//a[contains(@href, 'javascript:') or starts-with(text(), '4')]"
+                                                    "//a[contains(@href, 'javascript:') or starts-with(text(), '4')]",
                                                 )
                                                 for link in new_links:
                                                     if link.text.strip() == payment_no:
@@ -664,10 +761,17 @@ class PaymentScraper(ImprovedBaseScraper):
                                             # 策略2: 如果策略1沒找到，搜尋所有連結
                                             if not new_target_link:
                                                 try:
-                                                    all_new_links = self.driver.find_elements(By.TAG_NAME, "a")
+                                                    all_new_links = (
+                                                        self.driver.find_elements(
+                                                            By.TAG_NAME, "a"
+                                                        )
+                                                    )
                                                     for link in all_new_links:
                                                         try:
-                                                            if link.text.strip() == payment_no:
+                                                            if (
+                                                                link.text.strip()
+                                                                == payment_no
+                                                            ):
                                                                 new_target_link = link
                                                                 break
                                                         except:
@@ -677,14 +781,21 @@ class PaymentScraper(ImprovedBaseScraper):
 
                                             if new_target_link:
                                                 self.driver.execute_script(
-                                                    "arguments[0].click();", new_target_link
+                                                    "arguments[0].click();",
+                                                    new_target_link,
                                                 )
                                                 time.sleep(Timeouts.QUERY_SUBMIT)
                                             else:
-                                                self.logger.warning(f"⚠️ 在新視窗中找不到匯款編號 {payment_no} 的連結")
+                                                self.logger.warning(
+                                                    f"⚠️ 在新視窗中找不到匯款編號 {payment_no} 的連結"
+                                                )
 
                                         except Exception as nav_e:
-                                            self.logger.warning(f"⚠️ 新視窗導航失敗: {nav_e}", error="{nav_e}", operation="navigation")
+                                            self.logger.warning(
+                                                f"⚠️ 新視窗導航失敗: {nav_e}",
+                                                error="{nav_e}",
+                                                operation="navigation",
+                                            )
                                             # 如果新視窗導航失敗，切換回主視窗並使用原方法
                                             self.driver.close()
                                             self.driver.switch_to.window(main_window)
@@ -692,7 +803,8 @@ class PaymentScraper(ImprovedBaseScraper):
                                 else:
                                     # 普通連結可以直接在新視窗中開啟
                                     self.driver.execute_script(
-                                        "window.open(arguments[0], '_blank');", link_href
+                                        "window.open(arguments[0], '_blank');",
+                                        link_href,
                                     )
                                     new_windows = [
                                         handle
@@ -707,9 +819,13 @@ class PaymentScraper(ImprovedBaseScraper):
                                 # 匯款詳細頁面載入完成
 
                                 # 下載這個匯款記錄的Excel檔案
-                                download_success = self.download_excel_for_payment(payment_no)
+                                download_success = self.download_excel_for_payment(
+                                    payment_no
+                                )
                                 if download_success:
-                                    downloaded_files.append(f"代收貨款匯款明細_{self.username}_{payment_no}.xlsx")
+                                    downloaded_files.append(
+                                        f"代收貨款匯款明細_{self.username}_{payment_no}.xlsx"
+                                    )
 
                                 # 關閉新視窗並回到主視窗
                                 self.driver.close()
@@ -718,19 +834,25 @@ class PaymentScraper(ImprovedBaseScraper):
                                 # 切換回iframe
                                 try:
                                     iframe = WebDriverWait(self.driver, 5).until(
-                                        EC.presence_of_element_located((By.NAME, "datamain"))
+                                        EC.presence_of_element_located(
+                                            (By.NAME, "datamain")
+                                        )
                                     )
                                     self.driver.switch_to.frame(iframe)
                                 except (TimeoutException, NoSuchElementException):
                                     pass
 
-                                self.logger.info(f"✅ 已關閉新視窗，回到主查詢頁面", operation="search")
+                                self.logger.info(
+                                    f"✅ 已關閉新視窗，回到主查詢頁面", operation="search"
+                                )
 
                             else:
                                 self.logger.warning(f"⚠️ 找不到匯款編號 {payment_no} 的連結")
 
                         except Exception as link_e:
-                            self.logger.warning(f"⚠️ 處理匯款編號 {payment_no} 時發生錯誤: {link_e}")
+                            self.logger.warning(
+                                f"⚠️ 處理匯款編號 {payment_no} 時發生錯誤: {link_e}"
+                            )
 
                             # 確保回到主視窗
                             try:
@@ -748,7 +870,9 @@ class PaymentScraper(ImprovedBaseScraper):
                     self.logger.error(f"❌ 沒有找到匯款編號連結")
 
             except Exception as date_e:
-                self.logger.warning(f"⚠️ 填入查詢日期失敗: {date_e}", error="{date_e}", operation="search")
+                self.logger.warning(
+                    f"⚠️ 填入查詢日期失敗: {date_e}", error="{date_e}", operation="search"
+                )
 
             # 尋找並點擊匯出xlsx按鈕
             try:
@@ -763,9 +887,10 @@ class PaymentScraper(ImprovedBaseScraper):
                 ]
 
                 xlsx_button = None
+                wait = WebDriverWait(self.driver, Timeouts.DEFAULT_WAIT)
                 for selector in xlsx_selectors:
                     try:
-                        xlsx_button = self.waiter.until(
+                        xlsx_button = wait.until(
                             EC.element_to_be_clickable((By.XPATH, selector))
                         )
                         break
@@ -797,7 +922,9 @@ class PaymentScraper(ImprovedBaseScraper):
                         self.logger.info(f"✅ 已重命名為: {new_name}")
 
             except Exception as e:
-                self.logger.warning(f"⚠️ xlsx下載失敗: {e}", error="{e}", operation="download")
+                self.logger.warning(
+                    f"⚠️ xlsx下載失敗: {e}", error="{e}", operation="download"
+                )
 
             # 保持在iframe中，不切換回主frame
             return downloaded_files
@@ -810,38 +937,39 @@ class PaymentScraper(ImprovedBaseScraper):
                     "operation": "download_excel_for_record",
                     "username": self.username,
                     "record": record,
-                    "current_url": self.driver.current_url if self.driver else None
+                    "current_url": self.driver.current_url if self.driver else None,
                 },
                 capture_screenshot=True,
                 capture_page_source=True,
-                driver=self.driver
+                driver=self.driver,
             )
 
             self.logger.log_operation_failure(
-                f"下載記錄失敗: {e}",
-                str(e),
-                operation="download",
-                diagnostic_report=diagnostic_report
+                "下載記錄", e, diagnostic_report=diagnostic_report
             )
             return []
 
-    def refill_query_conditions(self):
+    def refill_query_conditions(self) -> None:
         """在新視窗中重新填入查詢條件"""
+        assert self.driver is not None, "WebDriver must be initialized"
         self.logger.info(f"📅 重新填入查詢條件...", operation="search")
 
         try:
             # 使用指定的日期範圍
             if self.start_date and self.end_date:
-                start_date = self.start_date.strftime("%Y%m%d")
-                end_date = self.end_date.strftime("%Y%m%d")
+                # start_date 和 end_date 已經是 YYYYMMDD 格式的字串
+                start_date = self.start_date
+                end_date = self.end_date
             else:
-                # 預設值：當日
+                # 預設值:當日
                 today = datetime.now()
                 start_date = today.strftime("%Y%m%d")
                 end_date = today.strftime("%Y%m%d")
 
             # 尋找日期輸入框
-            date_inputs = self.driver.find_elements(By.CSS_SELECTOR, 'input[type="text"]')
+            date_inputs = self.driver.find_elements(
+                By.CSS_SELECTOR, 'input[type="text"]'
+            )
 
             if len(date_inputs) >= 2:
                 # 填入開始日期
@@ -856,7 +984,9 @@ class PaymentScraper(ImprovedBaseScraper):
 
                 # 點擊查詢按鈕
                 try:
-                    query_button = self.driver.find_element(By.CSS_SELECTOR, 'input[value*="查詢"]')
+                    query_button = self.driver.find_element(
+                        By.CSS_SELECTOR, 'input[value*="查詢"]'
+                    )
                     query_button.click()
                     time.sleep(Timeouts.QUERY_SUBMIT)
                     self.logger.info(f"✅ 已執行查詢", operation="search")
@@ -868,8 +998,9 @@ class PaymentScraper(ImprovedBaseScraper):
         except Exception as e:
             self.logger.warning(f"⚠️ 重新填入查詢條件失敗: {e}", error="{e}", operation="search")
 
-    def download_excel_for_payment(self, payment_no):
+    def download_excel_for_payment(self, payment_no: str) -> Optional[str]:
         """為單個匯款記錄下載Excel檔案 - 使用 data-fileblob 提取"""
+        assert self.driver is not None, "WebDriver must be initialized"
         self.logger.info(f"📥 下載匯款編號 {payment_no} 的Excel檔案...", operation="download")
 
         try:
@@ -877,7 +1008,9 @@ class PaymentScraper(ImprovedBaseScraper):
             self.logger.info(f"🚀 嘗試從頁面提取 data-fileblob 數據...")
 
             # 尋找包含 data-fileblob 屬性的按鈕
-            fileblob_buttons = self.driver.find_elements(By.CSS_SELECTOR, "button[data-fileblob]")
+            fileblob_buttons = self.driver.find_elements(
+                By.CSS_SELECTOR, "button[data-fileblob]"
+            )
 
             if fileblob_buttons:
                 fileblob_button = fileblob_buttons[0]
@@ -893,6 +1026,9 @@ class PaymentScraper(ImprovedBaseScraper):
                             # 使用 openpyxl 創建 Excel 檔案
                             wb = openpyxl.Workbook()
                             ws = wb.active
+                            assert (
+                                ws is not None
+                            ), "Workbook active sheet should not be None"
                             ws.title = "代收貨款匯款明細"
 
                             # 將數據寫入工作表
@@ -900,28 +1036,51 @@ class PaymentScraper(ImprovedBaseScraper):
                                 for col_index, cell_value in enumerate(row_data, 1):
                                     # 清理 HTML 實體和空白字符
                                     if isinstance(cell_value, str):
-                                        cell_value = cell_value.replace("&nbsp;", "").strip()
+                                        cell_value = cell_value.replace(
+                                            "&nbsp;", ""
+                                        ).strip()
 
                                     cell = ws.cell(
-                                        row=row_index, column=col_index, value=cell_value
+                                        row=row_index,
+                                        column=col_index,
+                                        value=cell_value,
                                     )
 
                                     # 設定標題行格式
                                     if row_index == 1:
-                                        cell.font = openpyxl.styles.Font(bold=True)
+                                        from openpyxl.styles import Font
+
+                                        cell.font = Font(bold=True)
 
                             # 自動調整欄寬
+                            from openpyxl.cell.cell import Cell
+
                             for column in ws.columns:
                                 max_length = 0
-                                column_letter = column[0].column_letter
+                                # 取得第一個 Cell 的 column_letter (跳過 MergedCell)
+                                column_letter = None
+                                for cell in column:
+                                    if isinstance(cell, Cell) and hasattr(
+                                        cell, "column_letter"
+                                    ):
+                                        column_letter = cell.column_letter
+                                        break
+
+                                if column_letter is None:
+                                    continue
+
                                 for cell in column:
                                     try:
                                         if cell.value:
-                                            max_length = max(max_length, len(str(cell.value)))
+                                            max_length = max(
+                                                max_length, len(str(cell.value))
+                                            )
                                     except (AttributeError, TypeError):
                                         pass
                                 adjusted_width = min(max_length + 2, 50)
-                                ws.column_dimensions[column_letter].width = adjusted_width
+                                ws.column_dimensions[
+                                    column_letter
+                                ].width = adjusted_width
 
                             # 生成檔案名稱
                             new_name = f"代收貨款匯款明細_{self.username}_{payment_no}.xlsx"
@@ -938,27 +1097,33 @@ class PaymentScraper(ImprovedBaseScraper):
                                 f"✅ 已生成 Excel 檔案: {new_name} (共 {len(data_array)} 行數據)"
                             )
 
-                            return True
+                            return new_name
 
                         else:
                             self.logger.error(f"❌ data-fileblob 中沒有找到數據陣列")
-                            return False
+                            return None
 
                     except json.JSONDecodeError as json_e:
-                        self.logger.error(f"❌ 解析 data-fileblob JSON 失敗: {json_e}", error="{json_e}")
+                        self.logger.error(
+                            f"❌ 解析 data-fileblob JSON 失敗: {json_e}", error="{json_e}"
+                        )
                         self.logger.info(f"   原始數據前500字元: {fileblob_data[:500]}")
-                        return False
+                        return None
 
                     except Exception as excel_e:
-                        self.logger.error(f"❌ 生成 Excel 檔案失敗: {excel_e}", error="{excel_e}")
-                        return False
+                        self.logger.error(
+                            f"❌ 生成 Excel 檔案失敗: {excel_e}", error="{excel_e}"
+                        )
+                        return None
 
                 else:
                     self.logger.error(f"❌ data-fileblob 屬性為空")
-                    return False
+                    return None
 
             else:
-                self.logger.warning(f"⚠️ 未找到包含 data-fileblob 的元素，嘗試傳統下載方式...", operation="download")
+                self.logger.warning(
+                    f"⚠️ 未找到包含 data-fileblob 的元素，嘗試傳統下載方式...", operation="download"
+                )
                 return self._fallback_download_excel(payment_no)
 
         except Exception as blob_e:
@@ -966,8 +1131,9 @@ class PaymentScraper(ImprovedBaseScraper):
             self.logger.info(f"🔄 嘗試傳統下載方式...", operation="download")
             return self._fallback_download_excel(payment_no)
 
-    def _fallback_download_excel(self, payment_no):
+    def _fallback_download_excel(self, payment_no: str) -> Optional[str]:
         """備用的傳統下載方式"""
+        assert self.driver is not None, "WebDriver must be initialized"
         try:
             # 尋找並點擊匯出xlsx按鈕
             xlsx_selectors = [
@@ -1005,7 +1171,9 @@ class PaymentScraper(ImprovedBaseScraper):
                 # 重命名新下載的檔案
                 for new_file in new_files:
                     if new_file.suffix.lower() in [".xlsx", ".xls"]:
-                        new_name = f"代收貨款匯款明細_{self.username}_{payment_no}{new_file.suffix}"
+                        new_name = (
+                            f"代收貨款匯款明細_{self.username}_{payment_no}{new_file.suffix}"
+                        )
                         new_path = self.download_dir / new_name
 
                         # 如果目標檔案已存在，直接覆蓋
@@ -1015,7 +1183,7 @@ class PaymentScraper(ImprovedBaseScraper):
 
                         new_file.rename(new_path)
                         self.logger.info(f"✅ 已重命名為: {new_name}")
-                        return True
+                        return new_name
 
                 # 處理.crdownload檔案（Chrome下載中的檔案）
                 crdownload_files = list(self.download_dir.glob("*.crdownload"))
@@ -1030,25 +1198,30 @@ class PaymentScraper(ImprovedBaseScraper):
 
                     crdownload_file.rename(new_path)
                     self.logger.info(f"✅ 已重命名.crdownload檔案為: {new_name}")
-                    return True
+                    return new_name
 
-                return len(new_files) > 0
+                # 返回第一個新檔案的名稱,如果有的話
+                if new_files:
+                    return next(iter(new_files)).name
+                return None
             else:
                 self.logger.warning(f"⚠️ 找不到xlsx匯出按鈕")
-                return False
+                return None
 
         except Exception as e:
             self.logger.warning(f"⚠️ 傳統下載方式失敗: {e}", error="{e}", operation="download")
-            return False
+            return None
 
-    def run_full_process(self):
+    def run_full_process(self) -> List[str]:
         """執行完整的自動化流程"""
-        all_downloads = []
-        records = []
+        all_downloads: DownloadResult = []
+        records: RecordList = []
 
         try:
             self.logger.info("=" * 60)
-            self.logger.info(f"🤖 開始執行代收貨款查詢流程 (帳號: {self.username})", operation="search")
+            self.logger.info(
+                f"🤖 開始執行代收貨款查詢流程 (帳號: {self.username})", operation="search"
+            )
             self.logger.info("=" * 60)
 
             # 瀏覽器已在建構函式中自動初始化
@@ -1057,25 +1230,13 @@ class PaymentScraper(ImprovedBaseScraper):
             login_success = self.login()
             if not login_success:
                 self.logger.log_operation_failure(f"帳號 {self.username} 登入", "登入失敗")
-                return {
-                    "success": False,
-                    "username": self.username,
-                    "error": "登入失敗",
-                    "downloads": [],
-                    "records": [],
-                }
+                return []  # 登入失敗,返回空列表
 
             # 3. 導航到查詢頁面
             nav_success = self.navigate_to_query()
             if not nav_success:
                 self.logger.log_operation_failure(f"帳號 {self.username} 導航", "導航失敗")
-                return {
-                    "success": False,
-                    "username": self.username,
-                    "error": "導航失敗",
-                    "downloads": [],
-                    "records": [],
-                }
+                return []  # 導航失敗,返回空列表
 
             # 4. 先設定日期範圍（雖然可能找不到輸入框）
             self.set_date_range()
@@ -1085,13 +1246,7 @@ class PaymentScraper(ImprovedBaseScraper):
 
             if not records:
                 self.logger.warning(f"⚠️ 帳號 {self.username} 沒有找到付款記錄")
-                return {
-                    "success": True,
-                    "username": self.username,
-                    "message": "無資料可下載",
-                    "downloads": [],
-                    "records": [],
-                }
+                return []  # 沒有記錄,返回空列表
 
             # 6. 下載每個記錄的Excel檔案
             for record in records:
@@ -1102,28 +1257,17 @@ class PaymentScraper(ImprovedBaseScraper):
                     self.logger.warning(
                         f"⚠️ 帳號 {self.username} 下載記錄 "
                         f"{record.get('payment_no', 'unknown')} 失敗: {download_e}",
-                        operation="download"
+                        operation="download",
                     )
                     continue
 
             self.logger.info(f"🎉 帳號 {self.username} 自動化流程完成！")
 
-            return {
-                "success": True,
-                "username": self.username,
-                "downloads": all_downloads,
-                "records": records,
-            }
+            return all_downloads
 
         except Exception as e:
             self.logger.info(f"💥 帳號 {self.username} 流程執行失敗: {e}", error="{e}")
-            return {
-                "success": False,
-                "username": self.username,
-                "error": str(e),
-                "downloads": all_downloads,
-                "records": records,
-            }
+            return all_downloads  # 返回已下載的檔案列表,即使發生錯誤
         finally:
             self.close()
 
@@ -1132,6 +1276,7 @@ def main():
     """主程式入口"""
 
     from datetime import datetime, timedelta
+
     from src.core.logging_config import get_logger
 
     # 設置主程式日誌器
@@ -1139,7 +1284,9 @@ def main():
 
     parser = argparse.ArgumentParser(description="代收貨款自動下載工具")
     parser.add_argument("--headless", action="store_true", help="使用無頭模式")
-    parser.add_argument("--start-date", type=str, help="開始日期 (格式: YYYYMMDD，例如: 20241201)")
+    parser.add_argument(
+        "--start-date", type=str, help="開始日期 (格式: YYYYMMDD，例如: 20241201)"
+    )
     parser.add_argument("--end-date", type=str, help="結束日期 (格式: YYYYMMDD，例如: 20241208)")
 
     args = parser.parse_args()
@@ -1181,7 +1328,7 @@ def main():
         else:
             logger.info(
                 f"📅 查詢日期範圍: {start_date.strftime('%Y%m%d')} ~ {end_date.strftime('%Y%m%d')} (預設7天)",
-                operation="search"
+                operation="search",
             )
 
     except ValueError as e:
@@ -1197,8 +1344,8 @@ def main():
         manager.run_all_accounts(
             scraper_class=PaymentScraper,
             headless_override=args.headless if args.headless else None,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=start_date.strftime("%Y%m%d"),
+            end_date=end_date.strftime("%Y%m%d"),
         )
 
         return 0

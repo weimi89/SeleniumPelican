@@ -11,13 +11,13 @@
 import asyncio
 import json
 import smtplib
+import threading
 import time
 from datetime import datetime, timedelta
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
-import threading
 
 from .log_analyzer import LogAnalyzer, create_monitoring_dashboard_data
 from .logging_config import get_logger
@@ -37,15 +37,15 @@ class AlertChannel:
     def format_alert_message(self, alert: Dict[str, Any]) -> str:
         """格式化警報訊息"""
         severity_emoji = {
-            'critical': '🔴',
-            'error': '❌',
-            'warning': '⚠️',
-            'info': 'ℹ️'
-        }.get(alert.get('severity', 'info'), '•')
+            "critical": "🔴",
+            "error": "❌",
+            "warning": "⚠️",
+            "info": "ℹ️",
+        }.get(alert.get("severity", "info"), "•")
 
-        timestamp = alert.get('timestamp', datetime.now().isoformat())
-        name = alert.get('name', alert.get('type', 'Unknown'))
-        description = alert.get('description', '')
+        timestamp = alert.get("timestamp", datetime.now().isoformat())
+        name = alert.get("name", alert.get("type", "Unknown"))
+        description = alert.get("description", "")
 
         return f"{severity_emoji} **{name}**\n時間: {timestamp}\n描述: {description}"
 
@@ -53,8 +53,15 @@ class AlertChannel:
 class EmailAlertChannel(AlertChannel):
     """電子郵件警報通道"""
 
-    def __init__(self, smtp_host: str, smtp_port: int, username: str,
-                 password: str, from_email: str, to_emails: List[str]):
+    def __init__(
+        self,
+        smtp_host: str,
+        smtp_port: int,
+        username: str,
+        password: str,
+        from_email: str,
+        to_emails: List[str],
+    ):
         super().__init__("email")
         self.smtp_host = smtp_host
         self.smtp_port = smtp_port
@@ -66,13 +73,13 @@ class EmailAlertChannel(AlertChannel):
     async def send_alert(self, alert: Dict[str, Any]) -> bool:
         """發送電子郵件警報"""
         try:
-            msg = MimeMultipart()
-            msg['From'] = self.from_email
-            msg['To'] = ', '.join(self.to_emails)
-            msg['Subject'] = f"SeleniumPelican 警報: {alert.get('name', 'Alert')}"
+            msg = MIMEMultipart()
+            msg["From"] = self.from_email
+            msg["To"] = ", ".join(self.to_emails)
+            msg["Subject"] = f"SeleniumPelican 警報: {alert.get('name', 'Alert')}"
 
             body = self._format_email_body(alert)
-            msg.attach(MimeText(body, 'plain', 'utf-8'))
+            msg.attach(MIMEText(body, "plain", "utf-8"))
 
             with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
                 server.starttls()
@@ -97,25 +104,33 @@ class EmailAlertChannel(AlertChannel):
             "",
         ]
 
-        if 'details' in alert:
-            lines.extend([
-                "詳細資訊:",
-                json.dumps(alert['details'], indent=2, ensure_ascii=False),
-                "",
-            ])
+        if "details" in alert:
+            lines.extend(
+                [
+                    "詳細資訊:",
+                    json.dumps(alert["details"], indent=2, ensure_ascii=False),
+                    "",
+                ]
+            )
 
-        if 'recent_matches' in alert:
-            lines.extend([
-                "最近匹配:",
-            ])
-            for match in alert['recent_matches']:
-                lines.append(f"  - {match.get('timestamp', '')}: {match.get('message', '')}")
+        if "recent_matches" in alert:
+            lines.extend(
+                [
+                    "最近匹配:",
+                ]
+            )
+            for match in alert["recent_matches"]:
+                lines.append(
+                    f"  - {match.get('timestamp', '')}: {match.get('message', '')}"
+                )
             lines.append("")
 
-        lines.extend([
-            "",
-            "此警報由 SeleniumPelican 監控系統自動生成。",
-        ])
+        lines.extend(
+            [
+                "",
+                "此警報由 SeleniumPelican 監控系統自動生成。",
+            ]
+        )
 
         return "\n".join(lines)
 
@@ -134,18 +149,17 @@ class WebhookAlertChannel(AlertChannel):
             import aiohttp
 
             payload = {
-                'alert': alert,
-                'timestamp': datetime.now().isoformat(),
-                'source': 'SeleniumPelican'
+                "alert": alert,
+                "timestamp": datetime.now().isoformat(),
+                "source": "SeleniumPelican",
             }
 
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    self.webhook_url,
-                    json=payload,
-                    headers=self.headers
+                    self.webhook_url, json=payload, headers=self.headers
                 ) as response:
-                    return response.status < 400
+                    success: bool = response.status < 400
+                    return success
         except Exception as e:
             print(f"Failed to send webhook alert: {e}")
             return False
@@ -162,13 +176,10 @@ class FileAlertChannel(AlertChannel):
     async def send_alert(self, alert: Dict[str, Any]) -> bool:
         """將警報寫入檔案"""
         try:
-            alert_entry = {
-                'timestamp': datetime.now().isoformat(),
-                'alert': alert
-            }
+            alert_entry = {"timestamp": datetime.now().isoformat(), "alert": alert}
 
-            with open(self.alert_file, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(alert_entry, ensure_ascii=False) + '\n')
+            with open(self.alert_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(alert_entry, ensure_ascii=False) + "\n")
 
             return True
         except Exception as e:
@@ -179,21 +190,28 @@ class FileAlertChannel(AlertChannel):
 class MonitoringRule:
     """監控規則"""
 
-    def __init__(self, name: str, condition_func: Callable[[Dict[str, Any]], bool],
-                 severity: str = 'warning', description: str = '',
-                 cooldown_minutes: int = 30):
+    def __init__(
+        self,
+        name: str,
+        condition_func: Callable[[Dict[str, Any]], bool],
+        severity: str = "warning",
+        description: str = "",
+        cooldown_minutes: int = 30,
+    ):
         self.name = name
         self.condition_func = condition_func
         self.severity = severity
         self.description = description
         self.cooldown_minutes = cooldown_minutes
-        self.last_triggered = None
+        self.last_triggered: Optional[datetime] = None
 
     def check(self, analysis_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """檢查規則是否觸發"""
         # 檢查冷卻時間
         if self.last_triggered:
-            cooldown_end = self.last_triggered + timedelta(minutes=self.cooldown_minutes)
+            cooldown_end = self.last_triggered + timedelta(
+                minutes=self.cooldown_minutes
+            )
             if datetime.now() < cooldown_end:
                 return None
 
@@ -201,12 +219,12 @@ class MonitoringRule:
         if self.condition_func(analysis_data):
             self.last_triggered = datetime.now()
             return {
-                'name': self.name,
-                'severity': self.severity,
-                'description': self.description,
-                'timestamp': self.last_triggered.isoformat(),
-                'type': 'monitoring_rule',
-                'triggered_by': 'custom_rule'
+                "name": self.name,
+                "severity": self.severity,
+                "description": self.description,
+                "timestamp": self.last_triggered.isoformat(),
+                "type": "monitoring_rule",
+                "triggered_by": "custom_rule",
             }
 
         return None
@@ -221,7 +239,7 @@ class MonitoringService:
         self.alert_channels: List[AlertChannel] = []
         self.monitoring_rules: List[MonitoringRule] = []
         self.is_running = False
-        self.monitoring_thread = None
+        self.monitoring_thread: Optional[threading.Thread] = None
         self.check_interval = 300  # 5 分鐘
         self.config = self._load_config(config_file)
 
@@ -231,18 +249,15 @@ class MonitoringService:
     def _load_config(self, config_file: Optional[str] = None) -> Dict[str, Any]:
         """載入監控配置"""
         default_config = {
-            'check_interval_seconds': 300,
-            'alert_channels': [],
-            'rules': [],
-            'dashboard': {
-                'enabled': True,
-                'update_interval_seconds': 60
-            }
+            "check_interval_seconds": 300,
+            "alert_channels": [],
+            "rules": [],
+            "dashboard": {"enabled": True, "update_interval_seconds": 60},
         }
 
         if config_file and Path(config_file).exists():
             try:
-                with open(config_file, 'r', encoding='utf-8') as f:
+                with open(config_file, "r", encoding="utf-8") as f:
                     config = json.load(f)
                 default_config.update(config)
             except Exception as e:
@@ -255,48 +270,56 @@ class MonitoringService:
 
         # 高錯誤率規則
         def high_error_rate(data):
-            metrics = data.get('metrics', {})
-            return metrics.get('error_rate', 0) > 0.15  # 超過 15% 錯誤率
+            metrics = data.get("metrics", {})
+            return metrics.get("error_rate", 0) > 0.15  # 超過 15% 錯誤率
 
-        self.add_rule(MonitoringRule(
-            "high_error_rate",
-            high_error_rate,
-            "error",
-            "錯誤率過高（超過15%）",
-            cooldown_minutes=15
-        ))
+        self.add_rule(
+            MonitoringRule(
+                "high_error_rate",
+                high_error_rate,
+                "error",
+                "錯誤率過高（超過15%）",
+                cooldown_minutes=15,
+            )
+        )
 
         # 嚴重錯誤規則
         def critical_alerts(data):
-            metrics = data.get('metrics', {})
-            return metrics.get('critical_alerts', 0) > 0
+            metrics = data.get("metrics", {})
+            return metrics.get("critical_alerts", 0) > 0
 
-        self.add_rule(MonitoringRule(
-            "critical_alerts",
-            critical_alerts,
-            "critical",
-            "檢測到嚴重錯誤",
-            cooldown_minutes=5
-        ))
+        self.add_rule(
+            MonitoringRule(
+                "critical_alerts",
+                critical_alerts,
+                "critical",
+                "檢測到嚴重錯誤",
+                cooldown_minutes=5,
+            )
+        )
 
         # 長時間無日誌規則
         def no_recent_logs(data):
-            last_updated = data.get('last_updated')
+            last_updated = data.get("last_updated")
             if last_updated:
                 try:
-                    last_time = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                    last_time = datetime.fromisoformat(
+                        last_updated.replace("Z", "+00:00")
+                    )
                     return (datetime.now() - last_time) > timedelta(hours=2)
                 except ValueError:
                     return True
             return True
 
-        self.add_rule(MonitoringRule(
-            "no_recent_logs",
-            no_recent_logs,
-            "warning",
-            "超過2小時無新日誌",
-            cooldown_minutes=60
-        ))
+        self.add_rule(
+            MonitoringRule(
+                "no_recent_logs",
+                no_recent_logs,
+                "warning",
+                "超過2小時無新日誌",
+                cooldown_minutes=60,
+            )
+        )
 
     def add_alert_channel(self, channel: AlertChannel):
         """添加警報通道"""
@@ -330,7 +353,9 @@ class MonitoringService:
             return
 
         self.is_running = True
-        self.monitoring_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
+        self.monitoring_thread = threading.Thread(
+            target=self._monitoring_loop, daemon=True
+        )
         self.monitoring_thread.start()
         self.logger.info("監控服務已啟動")
 
@@ -359,7 +384,9 @@ class MonitoringService:
         """執行一次監控檢查"""
         try:
             # 獲取儀表板數據
-            dashboard_data = create_monitoring_dashboard_data(self.analyzer, hours_back=1)
+            dashboard_data = create_monitoring_dashboard_data(
+                self.analyzer, hours_back=1
+            )
 
             # 檢查所有規則
             alerts_to_send = []
@@ -376,12 +403,12 @@ class MonitoringService:
             analysis = self.analyzer.analyze_directory((start_time, end_time))
 
             # 添加觸發的模式警報
-            for pattern in analysis.get('triggered_patterns', []):
-                if pattern['severity'] in ['error', 'critical']:
+            for pattern in analysis.get("triggered_patterns", []):
+                if pattern["severity"] in ["error", "critical"]:
                     alerts_to_send.append(pattern)
 
             # 添加異常檢測警報
-            for anomaly in analysis.get('anomalies', []):
+            for anomaly in analysis.get("anomalies", []):
                 alerts_to_send.append(anomaly)
 
             # 發送所有警報
@@ -400,25 +427,24 @@ class MonitoringService:
     def get_monitoring_status(self) -> Dict[str, Any]:
         """取得監控狀態"""
         return {
-            'is_running': self.is_running,
-            'check_interval': self.check_interval,
-            'alert_channels': [
-                {
-                    'name': channel.name,
-                    'enabled': channel.enabled
-                }
+            "is_running": self.is_running,
+            "check_interval": self.check_interval,
+            "alert_channels": [
+                {"name": channel.name, "enabled": channel.enabled}
                 for channel in self.alert_channels
             ],
-            'monitoring_rules': [
+            "monitoring_rules": [
                 {
-                    'name': rule.name,
-                    'severity': rule.severity,
-                    'description': rule.description,
-                    'last_triggered': rule.last_triggered.isoformat() if rule.last_triggered else None
+                    "name": rule.name,
+                    "severity": rule.severity,
+                    "description": rule.description,
+                    "last_triggered": rule.last_triggered.isoformat()
+                    if rule.last_triggered
+                    else None,
                 }
                 for rule in self.monitoring_rules
             ],
-            'last_check': datetime.now().isoformat(),
+            "last_check": datetime.now().isoformat(),
         }
 
     def create_dashboard_html(self, output_file: str = "monitoring_dashboard.html"):
@@ -551,7 +577,7 @@ class MonitoringService:
 </html>
         """
 
-        with open(output_file, 'w', encoding='utf-8') as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             f.write(html_content)
 
         self.logger.info(f"儀表板已生成: {output_file}")
@@ -563,18 +589,20 @@ class MonitoringService:
 
         html_parts = []
         for alert in alerts[:10]:  # 只顯示前 10 個警報
-            severity = alert.get('severity', 'info')
-            name = alert.get('name', alert.get('type', 'Unknown'))
-            description = alert.get('description', '')
-            timestamp = alert.get('timestamp', '')
+            severity = alert.get("severity", "info")
+            name = alert.get("name", alert.get("type", "Unknown"))
+            description = alert.get("description", "")
+            timestamp = alert.get("timestamp", "")
 
-            html_parts.append(f"""
+            html_parts.append(
+                f"""
             <div class="alert-item alert-{severity}">
                 <strong>{name}</strong>
                 <p>{description}</p>
                 <small>{timestamp}</small>
             </div>
-            """)
+            """
+            )
 
         return "\n".join(html_parts)
 
@@ -603,6 +631,7 @@ if __name__ == "__main__":
 
     # 執行一次檢查
     import asyncio
+
     asyncio.run(service._perform_monitoring_check())
 
     # 生成儀表板

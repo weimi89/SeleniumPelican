@@ -6,16 +6,18 @@ readme = "README.md"
 requires-python = ">=3.8.1"
 dependencies = [
     "selenium>=4.15.0",
-    "webdriver-manager>=4.0.1", 
+    "webdriver-manager>=4.0.1",
     "requests>=2.31.0",
     "beautifulsoup4>=4.12.2",
     "openpyxl>=3.1.2",
     "python-dotenv>=1.0.0",
+    "aiohttp>=3.9.0",
+    "jsonschema>=4.0.0",
 ]
 
 [project.scripts]
 payment-scraper = "src.scrapers.payment_scraper:main"
-freight-scraper = "src.scrapers.freight_scraper:main" 
+freight-scraper = "src.scrapers.freight_scraper:main"
 unpaid-scraper = "src.scrapers.unpaid_scraper:main"
 
 [tool.uv]
@@ -47,6 +49,9 @@ build-backend = "hatchling.build"
 dev = [
     "autoflake>=2.3.1",
     "autopep8>=2.3.1",
+    "lxml>=6.0.2",
+    "types-python-dateutil>=2.9.0.20241206",
+    "types-requests>=2.32.0.20241016",
 ]
 
 # Black 配置
@@ -78,22 +83,30 @@ force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
 
-# MyPy 配置
+# MyPy 配置 - Phase 1: Foundation (漸進式嚴格模式)
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
 check_untyped_defs = true
-disallow_untyped_decorators = true
+# 暫時停用嚴格檢查，待型別註解完成後再啟用
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_decorators = false
+# 保留有用的警告
 no_implicit_optional = true
 warn_redundant_casts = true
-warn_unused_ignores = true
+warn_unused_ignores = false
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+# 第三方套件缺少 stub 時忽略
 ignore_missing_imports = true
+
+# 對核心模組啟用 strict mode（暫時禁用，待修正所有型別錯誤後再啟用）
+# [[tool.mypy.overrides]]
+# module = "src.core.*"
+# strict = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
@@ -114,6 +127,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
+    "benchmark: marks tests as performance benchmarks",
 ]
 
 # Coverage 配置

@@ -9,7 +9,7 @@ Automatically converts print() and safe_print() calls to structured logging
 import re
 import sys
 from pathlib import Path
-from typing import List, Tuple, Dict
+from typing import Dict, List, Optional, Tuple
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -24,28 +24,32 @@ class PrintToLoggerConverter:
     def __init__(self):
         self.logger = get_logger("print_converter")
         self.conversion_stats = {
-            'safe_print_converted': 0,
-            'print_converted': 0,
-            'files_processed': 0,
-            'total_conversions': 0
+            "safe_print_converted": 0,
+            "print_converted": 0,
+            "files_processed": 0,
+            "total_conversions": 0,
         }
 
     def analyze_print_pattern(self, content: str) -> str:
         """Analyze print content to determine appropriate log level"""
         content_lower = content.lower()
 
-        if any(marker in content_lower for marker in ['❌', '错误', 'error', 'failed', '失败']):
-            return 'error'
-        elif any(marker in content_lower for marker in ['⚠️', '警告', 'warning', 'warn']):
-            return 'warning'
-        elif any(marker in content_lower for marker in ['✅', '成功', 'success', '完成']):
-            return 'info'  # success operations
-        elif any(marker in content_lower for marker in ['🔍', '搜索', 'search', 'find', '查找']):
-            return 'debug'
-        elif any(marker in content_lower for marker in ['📊', '数据', 'data', '記錄']):
-            return 'info'  # data operations
+        if any(
+            marker in content_lower for marker in ["❌", "错误", "error", "failed", "失败"]
+        ):
+            return "error"
+        elif any(marker in content_lower for marker in ["⚠️", "警告", "warning", "warn"]):
+            return "warning"
+        elif any(marker in content_lower for marker in ["✅", "成功", "success", "完成"]):
+            return "info"  # success operations
+        elif any(
+            marker in content_lower for marker in ["🔍", "搜索", "search", "find", "查找"]
+        ):
+            return "debug"
+        elif any(marker in content_lower for marker in ["📊", "数据", "data", "記錄"]):
+            return "info"  # data operations
         else:
-            return 'info'  # default
+            return "info"  # default
 
     def extract_context_info(self, content: str) -> Dict[str, str]:
         """Extract context information from print content"""
@@ -53,31 +57,31 @@ class PrintToLoggerConverter:
 
         # Extract common patterns
         # Date patterns
-        date_match = re.search(r'(\d{8})', content)
+        date_match = re.search(r"(\d{8})", content)
         if date_match:
-            context['date'] = date_match.group(1)
+            context["date"] = date_match.group(1)
 
         # Number patterns
-        number_match = re.search(r'(\d+)\s*個', content)
+        number_match = re.search(r"(\d+)\s*個", content)
         if number_match:
-            context['count'] = number_match.group(1)
+            context["count"] = number_match.group(1)
 
         # Error patterns
-        error_match = re.search(r'失敗[:：]\s*(.+)', content)
+        error_match = re.search(r"失敗[:：]\s*(.+)", content)
         if error_match:
-            context['error'] = error_match.group(1)
+            context["error"] = error_match.group(1)
 
         # Operation patterns
-        if '登入' in content:
-            context['operation'] = 'login'
-        elif '下載' in content:
-            context['operation'] = 'download'
-        elif '搜尋' in content or '查詢' in content:
-            context['operation'] = 'search'
-        elif '設定' in content:
-            context['operation'] = 'config'
-        elif '導航' in content:
-            context['operation'] = 'navigation'
+        if "登入" in content:
+            context["operation"] = "login"
+        elif "下載" in content:
+            context["operation"] = "download"
+        elif "搜尋" in content or "查詢" in content:
+            context["operation"] = "search"
+        elif "設定" in content:
+            context["operation"] = "config"
+        elif "導航" in content:
+            context["operation"] = "navigation"
 
         return context
 
@@ -101,33 +105,41 @@ class PrintToLoggerConverter:
         # Build context string
         context_str = ""
         if context:
-            context_items = [f'{k}="{v}"' if isinstance(v, str) else f'{k}={v}'
-                           for k, v in context.items()]
+            context_items = [
+                f'{k}="{v}"' if isinstance(v, str) else f"{k}={v}"
+                for k, v in context.items()
+            ]
             context_str = ", " + ", ".join(context_items)
 
         # Choose appropriate logger method
-        if '✅' in content and ('成功' in content or '完成' in content):
-            if context.get('operation'):
+        if "✅" in content and ("成功" in content or "完成" in content):
+            if context.get("operation"):
                 clean_content = content.replace("✅ ", "").strip()
-                method = f'self.logger.log_operation_success("{clean_content}"{context_str})'
+                method = (
+                    f'self.logger.log_operation_success("{clean_content}"{context_str})'
+                )
             else:
                 method = f'self.logger.{log_level}(f"{content}"{context_str})'
-        elif '❌' in content:
-            if context.get('operation'):
+        elif "❌" in content:
+            if context.get("operation"):
                 clean_content = content.replace("❌ ", "").strip()
                 error_msg = context.get("error", "操作失敗")
                 method = f'self.logger.log_operation_failure("{clean_content}", "{error_msg}"{context_str})'
             else:
                 method = f'self.logger.{log_level}(f"{content}"{context_str})'
-        elif '📊' in content and context.get('count'):
+        elif "📊" in content and context.get("count"):
             clean_content = content.split("📊")[1].strip() if "📊" in content else content
             count_value = context["count"]
-            context_clean = context_str.replace(f'count="{count_value}"', "").replace(", ,", ",").strip(", ")
+            context_clean = (
+                context_str.replace(f'count="{count_value}"', "")
+                .replace(", ,", ",")
+                .strip(", ")
+            )
             method = f'self.logger.log_data_info("{clean_content}", count={count_value}{context_clean})'
         else:
             method = f'self.logger.{log_level}(f"{content}"{context_str})'
 
-        self.conversion_stats['safe_print_converted'] += 1
+        self.conversion_stats["safe_print_converted"] += 1
         return method
 
     def convert_print_call(self, match: re.Match) -> str:
@@ -136,12 +148,12 @@ class PrintToLoggerConverter:
         content = match.group(1)
 
         # Simple print calls usually go to info level
-        log_level = 'info'
+        log_level = "info"
 
         # Build basic logger call
-        method = f'self.logger.{log_level}({content})'
+        method = f"self.logger.{log_level}({content})"
 
-        self.conversion_stats['print_converted'] += 1
+        self.conversion_stats["print_converted"] += 1
         return method
 
     def convert_file(self, file_path: Path) -> bool:
@@ -150,39 +162,45 @@ class PrintToLoggerConverter:
             self.logger.info(f"🔄 轉換檔案: {file_path}", file_path=str(file_path))
 
             # Read file content
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             original_content = content
 
             # Check if file uses ImprovedBaseScraper (has self.logger available)
-            if 'ImprovedBaseScraper' not in content:
-                self.logger.warning(f"⚠️ 檔案 {file_path} 未使用 ImprovedBaseScraper，跳過轉換",
-                                  file_path=str(file_path))
+            if "ImprovedBaseScraper" not in content:
+                self.logger.warning(
+                    f"⚠️ 檔案 {file_path} 未使用 ImprovedBaseScraper，跳過轉換",
+                    file_path=str(file_path),
+                )
                 return False
 
             # Convert safe_print() calls
-            safe_print_pattern = r'safe_print\(([^)]+)\)'
+            safe_print_pattern = r"safe_print\(([^)]+)\)"
             content = re.sub(safe_print_pattern, self.convert_safe_print_call, content)
 
             # Convert print() calls (but be careful not to convert print inside strings)
             # Only convert standalone print() calls that are likely logging
-            print_pattern = r'\bprint\(([^)]+)\)(?!\s*#.*debug|#.*test)'
+            print_pattern = r"\bprint\(([^)]+)\)(?!\s*#.*debug|#.*test)"
             content = re.sub(print_pattern, self.convert_print_call, content)
 
             # Remove safe_print import if no longer needed
-            if 'safe_print(' not in content:
-                content = re.sub(r'from\s+.*\.windows_encoding_utils\s+import.*safe_print.*\n', '', content)
-                content = re.sub(r',\s*safe_print', '', content)
-                content = re.sub(r'safe_print\s*,\s*', '', content)
+            if "safe_print(" not in content:
+                content = re.sub(
+                    r"from\s+.*\.windows_encoding_utils\s+import.*safe_print.*\n",
+                    "",
+                    content,
+                )
+                content = re.sub(r",\s*safe_print", "", content)
+                content = re.sub(r"safe_print\s*,\s*", "", content)
 
             # Only write if content changed
             if content != original_content:
-                with open(file_path, 'w', encoding='utf-8') as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     f.write(content)
 
                 self.logger.log_operation_success("檔案轉換完成", file_path=str(file_path))
-                self.conversion_stats['files_processed'] += 1
+                self.conversion_stats["files_processed"] += 1
                 return True
             else:
                 self.logger.info(f"📝 檔案 {file_path} 無需轉換", file_path=str(file_path))
@@ -192,7 +210,7 @@ class PrintToLoggerConverter:
             self.logger.log_operation_failure("檔案轉換", e, file_path=str(file_path))
             return False
 
-    def convert_project(self, base_path: Path = None) -> None:
+    def convert_project(self, base_path: Optional[Path] = None) -> None:
         """Convert all Python files in the project"""
         if base_path is None:
             base_path = project_root / "src"
@@ -202,24 +220,25 @@ class PrintToLoggerConverter:
         # Find all Python files
         python_files = list(base_path.rglob("*.py"))
 
-        self.logger.info(f"📁 找到 {len(python_files)} 個 Python 檔案", count=len(python_files))
+        self.logger.info(
+            f"📁 找到 {len(python_files)} 個 Python 檔案", count=len(python_files)
+        )
 
         # Convert each file
         for file_path in python_files:
             # Skip __pycache__ and test files for now
-            if '__pycache__' in str(file_path) or str(file_path).endswith('_test.py'):
+            if "__pycache__" in str(file_path) or str(file_path).endswith("_test.py"):
                 continue
 
             self.convert_file(file_path)
 
         # Report statistics
-        self.conversion_stats['total_conversions'] = (
-            self.conversion_stats['safe_print_converted'] +
-            self.conversion_stats['print_converted']
+        self.conversion_stats["total_conversions"] = (
+            self.conversion_stats["safe_print_converted"]
+            + self.conversion_stats["print_converted"]
         )
 
-        self.logger.log_data_info("批量轉換完成統計",
-                                 **self.conversion_stats)
+        self.logger.log_data_info("批量轉換完成統計", **self.conversion_stats)
 
         print("\n📊 轉換統計:")
         print(f"  • 處理檔案數: {self.conversion_stats['files_processed']}")
@@ -233,15 +252,17 @@ class PrintToLoggerConverter:
 
         for pattern in file_patterns:
             files = list(base_path.rglob(pattern))
-            self.logger.info(f"🎯 轉換符合 '{pattern}' 的檔案", pattern=pattern, count=len(files))
+            self.logger.info(
+                f"🎯 轉換符合 '{pattern}' 的檔案", pattern=pattern, count=len(files)
+            )
 
             for file_path in files:
                 self.convert_file(file_path)
 
         # Report statistics
-        self.conversion_stats['total_conversions'] = (
-            self.conversion_stats['safe_print_converted'] +
-            self.conversion_stats['print_converted']
+        self.conversion_stats["total_conversions"] = (
+            self.conversion_stats["safe_print_converted"]
+            + self.conversion_stats["print_converted"]
         )
 
         self.logger.log_data_info("特定檔案轉換完成統計", **self.conversion_stats)
@@ -252,7 +273,7 @@ class PrintToLoggerConverter:
             "src/utils/windows_encoding_utils.py",
             "src/core/base_scraper.py",
             "src/core/config_validator.py",
-            "src/core/logging_config.py"
+            "src/core/logging_config.py",
         ]
 
         self.logger.info("🔧 開始轉換核心模組", modules=core_modules)
@@ -263,9 +284,9 @@ class PrintToLoggerConverter:
                 self.convert_core_module_file(file_path)
 
         # Report statistics
-        self.conversion_stats['total_conversions'] = (
-            self.conversion_stats['safe_print_converted'] +
-            self.conversion_stats['print_converted']
+        self.conversion_stats["total_conversions"] = (
+            self.conversion_stats["safe_print_converted"]
+            + self.conversion_stats["print_converted"]
         )
 
         self.logger.log_data_info("核心模組轉換完成統計", **self.conversion_stats)
@@ -276,7 +297,7 @@ class PrintToLoggerConverter:
             self.logger.info(f"🔄 轉換核心模組: {file_path}", file_path=str(file_path))
 
             # Read file content
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             original_content = content
@@ -294,11 +315,11 @@ class PrintToLoggerConverter:
 
             # Only write if content changed
             if content != original_content:
-                with open(file_path, 'w', encoding='utf-8') as f:
+                with open(file_path, "w", encoding="utf-8") as f:
                     f.write(content)
 
                 self.logger.log_operation_success("核心模組轉換完成", file_path=str(file_path))
-                self.conversion_stats['files_processed'] += 1
+                self.conversion_stats["files_processed"] += 1
                 return True
             else:
                 self.logger.info(f"📝 核心模組 {file_path} 無需轉換", file_path=str(file_path))
@@ -311,41 +332,42 @@ class PrintToLoggerConverter:
     def _convert_windows_encoding_utils(self, content: str) -> str:
         """Convert windows_encoding_utils.py specific patterns"""
         # Add logger import at the top
-        if 'from src.core.logging_config import get_logger' not in content:
-            import_line = '\nfrom src.core.logging_config import get_logger\n'
-            content = content.replace('import sys', f'import sys{import_line}')
+        if "from src.core.logging_config import get_logger" not in content:
+            import_line = "\nfrom src.core.logging_config import get_logger\n"
+            content = content.replace("import sys", f"import sys{import_line}")
 
         # Add logger initialization after imports
         if 'logger = get_logger("windows_encoding")' not in content:
             content = content.replace(
-                'def safe_print(message):',
-                'logger = get_logger("windows_encoding")\n\n\ndef safe_print(message):'
+                "def safe_print(message):",
+                'logger = get_logger("windows_encoding")\n\n\ndef safe_print(message):',
             )
 
         # Convert print statements to logger calls
-        print_pattern = r'print\(([^)]+)\)'
+        print_pattern = r"print\(([^)]+)\)"
+
         def replace_print(match):
-            self.conversion_stats['print_converted'] += 1
-            return f'logger.info({match.group(1)})'
+            self.conversion_stats["print_converted"] += 1
+            return f"logger.info({match.group(1)})"
 
         content = re.sub(print_pattern, replace_print, content)
 
         # Convert specific safe_print calls (but keep the safe_print function)
         content = content.replace(
             'safe_print("⚠️ 偵測到未設定 PYTHONUNBUFFERED 環境變數")',
-            'logger.warning("偵測到未設定 PYTHONUNBUFFERED 環境變數", issue="missing_env_var")'
+            'logger.warning("偵測到未設定 PYTHONUNBUFFERED 環境變數", issue="missing_env_var")',
         )
         content = content.replace(
             'safe_print("📝 請使用以下方式執行以確保即時輸出：")',
-            'logger.info("請使用以下方式執行以確保即時輸出", operation="setup_instructions")'
+            'logger.info("請使用以下方式執行以確保即時輸出", operation="setup_instructions")',
         )
         content = content.replace(
             'safe_print("❌ 程式將退出，請使用上述方式重新執行")',
-            'logger.error("程式將退出，請使用上述方式重新執行", action="exit")'
+            'logger.error("程式將退出，請使用上述方式重新執行", action="exit")',
         )
         content = content.replace(
             'safe_print("✅ PYTHONUNBUFFERED 環境變數已設定")',
-            'logger.info("PYTHONUNBUFFERED 環境變數已設定", status="configured")'
+            'logger.info("PYTHONUNBUFFERED 環境變數已設定", status="configured")',
         )
 
         return content
@@ -353,16 +375,18 @@ class PrintToLoggerConverter:
     def _convert_base_scraper(self, content: str) -> str:
         """Convert base_scraper.py specific patterns"""
         # Add logger import if not present
-        if 'from .logging_config import get_logger' not in content:
+        if "from .logging_config import get_logger" not in content:
             content = content.replace(
-                'from ..utils.windows_encoding_utils import safe_print',
-                'from ..utils.windows_encoding_utils import safe_print\nfrom .logging_config import get_logger'
+                "from ..utils.windows_encoding_utils import safe_print",
+                "from ..utils.windows_encoding_utils import safe_print\nfrom .logging_config import get_logger",
             )
 
         # Add logger initialization in __init__ method
-        if 'self.logger = get_logger' not in content:
-            init_pattern = r'(def __init__\(self[^:]*\):\s*)'
-            replacement = r'\1\n        self.logger = get_logger(f"base_scraper_{self.username}")'
+        if "self.logger = get_logger" not in content:
+            init_pattern = r"(def __init__\(self[^:]*\):\s*)"
+            replacement = (
+                r'\1\n        self.logger = get_logger(f"base_scraper_{self.username}")'
+            )
             content = re.sub(init_pattern, replacement, content, flags=re.MULTILINE)
 
         # Convert safe_print calls with operation context
@@ -379,7 +403,7 @@ class PrintToLoggerConverter:
         for old_print, new_log in safe_print_patterns.items():
             if old_print in content:
                 content = content.replace(old_print, new_log)
-                self.conversion_stats['safe_print_converted'] += 1
+                self.conversion_stats["safe_print_converted"] += 1
 
         # Convert remaining safe_print calls (both f-strings and regular strings)
         remaining_patterns = {
@@ -401,16 +425,19 @@ class PrintToLoggerConverter:
         for old_print, new_log in remaining_patterns.items():
             if old_print in content:
                 content = content.replace(old_print, new_log)
-                self.conversion_stats['safe_print_converted'] += 1
+                self.conversion_stats["safe_print_converted"] += 1
 
         # Convert remaining safe_print with f-strings
         pattern = r'safe_print\(f"([^"]+)"\)'
+
         def replace_fstring_safe_print(match):
             message = match.group(1)
-            self.conversion_stats['safe_print_converted'] += 1
-            if '✅' in message:
-                return f'self.logger.log_operation_success(f"{message.replace("✅ ", "")}")'
-            elif '❌' in message:
+            self.conversion_stats["safe_print_converted"] += 1
+            if "✅" in message:
+                return (
+                    f'self.logger.log_operation_success(f"{message.replace("✅ ", "")}")'
+                )
+            elif "❌" in message:
                 return f'self.logger.log_operation_failure("操作", f"{message.replace("❌ ", "")}")'
             else:
                 return f'self.logger.info(f"{message}")'
@@ -422,48 +449,61 @@ class PrintToLoggerConverter:
     def _convert_config_validator(self, content: str) -> str:
         """Convert config_validator.py specific patterns"""
         # Add logger import
-        if 'from .logging_config import get_logger' not in content:
+        if "from .logging_config import get_logger" not in content:
             content = content.replace(
-                'from ..utils.windows_encoding_utils import safe_print',
-                'from ..utils.windows_encoding_utils import safe_print\nfrom .logging_config import get_logger'
+                "from ..utils.windows_encoding_utils import safe_print",
+                "from ..utils.windows_encoding_utils import safe_print\nfrom .logging_config import get_logger",
             )
 
         # Add logger to ConfigValidator class
-        if 'self.logger = get_logger' not in content:
-            init_pattern = r'(def __init__\(self[^:]*\):[^}]*?)(self\.project_root = Path)'
+        if "self.logger = get_logger" not in content:
+            init_pattern = (
+                r"(def __init__\(self[^:]*\):[^}]*?)(self\.project_root = Path)"
+            )
             replacement = r'\1self.logger = get_logger("config_validator")\n        \2'
             content = re.sub(init_pattern, replacement, content, flags=re.DOTALL)
 
         # Convert safe_print patterns in validation report method
         safe_print_patterns = [
-            ('safe_print("🔍 SeleniumPelican 配置檔案驗證報告")',
-             'self.logger.info("SeleniumPelican 配置檔案驗證報告", operation="validation_report")'),
-            ('safe_print("=" * 50)',
-             'self.logger.info("=" * 50)'),
-            ('safe_print(f"✅ {config_file}: 驗證通過")',
-             'self.logger.log_operation_success(f"{config_file} 驗證", config_file=config_file)'),
-            ('safe_print(f"❌ {config_file}: 發現 {len(errors)} 個問題")',
-             'self.logger.error(f"{config_file} 發現 {len(errors)} 個問題", config_file=config_file, error_count=len(errors))'),
-            ('safe_print(f"   {i}. {error}")',
-             'self.logger.error(f"   {i}. {error}", error_detail=error, error_index=i)'),
-            ('safe_print("🎉 所有配置檔案驗證通過！")',
-             'self.logger.log_operation_success("所有配置檔案驗證")'),
-            ('safe_print("⚠️ 發現配置問題，請檢查並修正上述錯誤")',
-             'self.logger.warning("發現配置問題，請檢查並修正上述錯誤", status="validation_failed")'),
+            (
+                'safe_print("🔍 SeleniumPelican 配置檔案驗證報告")',
+                'self.logger.info("SeleniumPelican 配置檔案驗證報告", operation="validation_report")',
+            ),
+            ('safe_print("=" * 50)', 'self.logger.info("=" * 50)'),
+            (
+                'safe_print(f"✅ {config_file}: 驗證通過")',
+                'self.logger.log_operation_success(f"{config_file} 驗證", config_file=config_file)',
+            ),
+            (
+                'safe_print(f"❌ {config_file}: 發現 {len(errors)} 個問題")',
+                'self.logger.error(f"{config_file} 發現 {len(errors)} 個問題", config_file=config_file, error_count=len(errors))',
+            ),
+            (
+                'safe_print(f"   {i}. {error}")',
+                'self.logger.error(f"   {i}. {error}", error_detail=error, error_index=i)',
+            ),
+            (
+                'safe_print("🎉 所有配置檔案驗證通過！")',
+                'self.logger.log_operation_success("所有配置檔案驗證")',
+            ),
+            (
+                'safe_print("⚠️ 發現配置問題，請檢查並修正上述錯誤")',
+                'self.logger.warning("發現配置問題，請檢查並修正上述錯誤", status="validation_failed")',
+            ),
         ]
 
         for old_print, new_log in safe_print_patterns:
             if old_print in content:
                 content = content.replace(old_print, new_log)
-                self.conversion_stats['safe_print_converted'] += 1
+                self.conversion_stats["safe_print_converted"] += 1
 
         # Convert safe_print in create_missing_config_files method
         content = content.replace(
-            'safe_print(message)',
-            'self.logger.info(message, operation="config_creation")'
+            "safe_print(message)",
+            'self.logger.info(message, operation="config_creation")',
         )
-        if 'safe_print(message)' in content:
-            self.conversion_stats['safe_print_converted'] += 1
+        if "safe_print(message)" in content:
+            self.conversion_stats["safe_print_converted"] += 1
 
         return content
 
@@ -473,10 +513,10 @@ class PrintToLoggerConverter:
         # The safe_print in log_with_safe_print is intentional for transition
         # We can add a comment to clarify this
 
-        if '# Transition function - safe_print is intentional' not in content:
+        if "# Transition function - safe_print is intentional" not in content:
             content = content.replace(
                 'def log_with_safe_print(message: str, level: str = "INFO", **kwargs):',
-                'def log_with_safe_print(message: str, level: str = "INFO", **kwargs):\n    # Transition function - safe_print is intentional for Windows compatibility'
+                'def log_with_safe_print(message: str, level: str = "INFO", **kwargs):\n    # Transition function - safe_print is intentional for Windows compatibility',
             )
 
         return content

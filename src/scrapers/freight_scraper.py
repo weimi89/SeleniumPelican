@@ -10,6 +10,7 @@ import argparse
 import json
 import time
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 import openpyxl
 from selenium.webdriver.common.by import By
@@ -17,6 +18,7 @@ from selenium.webdriver.common.by import By
 from src.core.constants import Timeouts
 from src.core.improved_base_scraper import ImprovedBaseScraper
 from src.core.multi_account_manager import MultiAccountManager
+from src.core.type_aliases import DownloadResult
 from src.utils.windows_encoding_utils import check_pythonunbuffered
 
 # 使用共用的模組和改進版基礎類別
@@ -42,7 +44,9 @@ class FreightScraper(ImprovedBaseScraper):
     ):
         # 構建 URL 並調用父類構造函數
         url = "http://wedinlb03.e-can.com.tw/wEDI2012/wedilogin.asp"
-        super().__init__(url=url, username=username, password=password, headless=headless)
+        super().__init__(
+            url=url, username=username, password=password, headless=headless
+        )
 
         # 子類特有的屬性
         self.start_month = start_month
@@ -93,8 +97,9 @@ class FreightScraper(ImprovedBaseScraper):
         # 預設開始和結束月份都是上個月
         return prev_month_str, prev_month_str
 
-    def navigate_to_freight_page(self):
+    def navigate_to_freight_page(self) -> bool:
         """導航到運費查詢頁面 (2-7)運費(月結)結帳資料查詢"""
+        assert self.driver is not None, "WebDriver must be initialized"
         self.logger.info(f"🧭 導航至運費查詢頁面...", operation="search")
 
         try:
@@ -117,7 +122,9 @@ class FreightScraper(ImprovedBaseScraper):
                             or ("結帳資料" in link_text and "運費" in link_text)
                         ):
                             freight_link = link
-                            self.logger.info(f"   ✅ 找到運費查詢連結: {link_text}", operation="search")
+                            self.logger.info(
+                                f"   ✅ 找到運費查詢連結: {link_text}", operation="search"
+                            )
                             break
                         elif "運費" in link_text:
                             self.logger.debug(f"   🔍 找到運費相關連結: {link_text}")
@@ -149,23 +156,23 @@ class FreightScraper(ImprovedBaseScraper):
                     "operation": "navigate_to_freight_page",
                     "username": self.username,
                     "current_url": self.driver.current_url if self.driver else None,
-                    "links_found": len(self.driver.find_elements(By.TAG_NAME, "a")) if self.driver else 0
+                    "links_found": len(self.driver.find_elements(By.TAG_NAME, "a"))
+                    if self.driver
+                    else 0,
                 },
                 capture_screenshot=True,
                 capture_page_source=True,
-                driver=self.driver
+                driver=self.driver,
             )
 
             self.logger.log_operation_failure(
-                f"導航到運費查詢頁面失敗: {e}",
-                str(e),
-                operation="search",
-                diagnostic_report=diagnostic_report
+                "導航到運費查詢頁面", e, diagnostic_report=diagnostic_report
             )
             return False
 
-    def set_date_range(self):
+    def set_date_range(self) -> bool:
         """設定查詢月份範圍 - 基於wedi_selenium_scraper.py的邏輯但適配月份"""
+        assert self.driver is not None, "WebDriver must be initialized"
         self.logger.info(f"📅 設定月份範圍...", operation="config")
 
         # 使用指定的月份範圍，如果沒有指定則使用預設值
@@ -182,7 +189,9 @@ class FreightScraper(ImprovedBaseScraper):
 
         try:
             # 已經在iframe中，嘗試尋找月份輸入框
-            date_inputs = self.driver.find_elements(By.CSS_SELECTOR, 'input[type="text"]')
+            date_inputs = self.driver.find_elements(
+                By.CSS_SELECTOR, 'input[type="text"]'
+            )
 
             if len(date_inputs) >= 2:
                 try:
@@ -210,7 +219,9 @@ class FreightScraper(ImprovedBaseScraper):
 
                 for selector in button_selectors:
                     try:
-                        query_button = self.driver.find_element(By.CSS_SELECTOR, selector)
+                        query_button = self.driver.find_element(
+                            By.CSS_SELECTOR, selector
+                        )
                         query_button.click()
                         self.logger.info(f"✅ 已點擊查詢按鈕", operation="search")
                         time.sleep(Timeouts.QUERY_SUBMIT)
@@ -235,25 +246,26 @@ class FreightScraper(ImprovedBaseScraper):
                     "username": self.username,
                     "start_month": self.start_month,
                     "end_month": self.end_month,
-                    "current_url": self.driver.current_url if self.driver else None
+                    "current_url": self.driver.current_url if self.driver else None,
                 },
                 capture_screenshot=True,
                 capture_page_source=True,
-                driver=self.driver
+                driver=self.driver,
             )
 
             self.logger.warning(
                 f"⚠️ 月份範圍設定過程中出現問題，但繼續執行: {e}",
                 operation="config",
-                diagnostic_report=diagnostic_report
+                diagnostic_report=diagnostic_report,
             )
             return True  # 即使失敗也返回True，讓流程繼續
 
-    def get_freight_records(self):
+    def get_freight_records(self) -> List[Dict[str, Any]]:
         """搜尋運費相關數據 - 基於wedi_selenium_scraper.py的邏輯但適配運費"""
+        assert self.driver is not None, "WebDriver must be initialized"
         self.logger.info(f"📊 搜尋運費數據...", operation="search")
 
-        records = []
+        records: List[Dict[str, Any]] = []
         try:
             # 此時已經在datamain iframe中，直接搜尋數據
             self.logger.debug(f"🔍 分析當前頁面內容...")
@@ -284,7 +296,9 @@ class FreightScraper(ImprovedBaseScraper):
                                 for cell_index, cell in enumerate(all_cells):
                                     cell_text = cell.text.strip()
                                     if cell_text:
-                                        self.logger.info(f"     欄位 {cell_index + 1}: '{cell_text}'")
+                                        self.logger.info(
+                                            f"     欄位 {cell_index + 1}: '{cell_text}'"
+                                        )
 
                                         # 檢查這個欄位是否包含發票號碼（英數字組合，長度 > 8）
                                         # 排除包含中文字符、特殊符號（如 - 後接中文）的客戶名稱
@@ -294,22 +308,34 @@ class FreightScraper(ImprovedBaseScraper):
                                             and any(c.isalpha() for c in cell_text)
                                             and cell_text not in ["發票號碼", "小計", "總計"]
                                         )
-                                        
-                                        # 排除包含中文字符的客戶名稱（如 5081794203-宥芯有限公）
-                                        has_chinese = any(ord(c) >= 0x4e00 and ord(c) <= 0x9fff for c in cell_text)
-                                        
-                                        # 排除明顯的客戶代碼格式（數字-中文公司名）
-                                        is_customer_code = '-' in cell_text and has_chinese
-                                        
-                                        if is_invoice_like and not has_chinese and not is_customer_code:
 
-                                            self.logger.debug(f"     🔍 可能的發票號碼: '{cell_text}'")
+                                        # 排除包含中文字符的客戶名稱（如 5081794203-宥芯有限公）
+                                        has_chinese = any(
+                                            ord(c) >= 0x4E00 and ord(c) <= 0x9FFF
+                                            for c in cell_text
+                                        )
+
+                                        # 排除明顯的客戶代碼格式（數字-中文公司名）
+                                        is_customer_code = (
+                                            "-" in cell_text and has_chinese
+                                        )
+
+                                        if (
+                                            is_invoice_like
+                                            and not has_chinese
+                                            and not is_customer_code
+                                        ):
+                                            self.logger.debug(
+                                                f"     🔍 可能的發票號碼: '{cell_text}'"
+                                            )
 
                                             # 檢查是否有可點擊的連結
                                             invoice_link = None
                                             try:
                                                 # 嘗試在該欄位中尋找連結
-                                                invoice_link = cell.find_element(By.TAG_NAME, "a")
+                                                invoice_link = cell.find_element(
+                                                    By.TAG_NAME, "a"
+                                                )
                                                 self.logger.info(f"     ✅ 在欄位中找到連結")
                                             except Exception:
                                                 # 如果該欄位沒有連結，嘗試整行是否可點擊
@@ -321,7 +347,9 @@ class FreightScraper(ImprovedBaseScraper):
                                                 except Exception:
                                                     # 如果沒有連結，使用整個 cell 作為點擊目標
                                                     invoice_link = cell
-                                                    self.logger.warning(f"     ⚠️ 沒有連結，使用欄位本身")
+                                                    self.logger.warning(
+                                                        f"     ⚠️ 沒有連結，使用欄位本身"
+                                                    )
 
                                             if invoice_link:
                                                 # 嘗試獲取發票日期（通常在前一個或後一個欄位）
@@ -332,7 +360,11 @@ class FreightScraper(ImprovedBaseScraper):
                                                         cell_index - 1,
                                                         cell_index + 1,
                                                     ]:
-                                                        if 0 <= check_index < len(all_cells):
+                                                        if (
+                                                            0
+                                                            <= check_index
+                                                            < len(all_cells)
+                                                        ):
                                                             check_text = all_cells[
                                                                 check_index
                                                             ].text.strip()
@@ -340,7 +372,9 @@ class FreightScraper(ImprovedBaseScraper):
                                                                 len(check_text) == 8
                                                                 and check_text.isdigit()
                                                             ):
-                                                                invoice_date = check_text
+                                                                invoice_date = (
+                                                                    check_text
+                                                                )
                                                                 break
                                                 except Exception:
                                                     pass
@@ -364,7 +398,9 @@ class FreightScraper(ImprovedBaseScraper):
                                                 )
 
                         except Exception as row_e:
-                            self.logger.warning(f"   ⚠️ 處理行 {row_index + 1} 時出錯: {row_e}")
+                            self.logger.warning(
+                                f"   ⚠️ 處理行 {row_index + 1} 時出錯: {row_e}"
+                            )
                             continue
 
                 except Exception as table_e:
@@ -453,25 +489,24 @@ class FreightScraper(ImprovedBaseScraper):
                     "current_url": self.driver.current_url if self.driver else None,
                     "records_found": len(records),
                     "start_month": self.start_month,
-                    "end_month": self.end_month
+                    "end_month": self.end_month,
                 },
                 capture_screenshot=True,
                 capture_page_source=True,
-                driver=self.driver
+                driver=self.driver,
             )
 
             self.logger.log_operation_failure(
-                f"搜尋運費數據失敗: {e}",
-                str(e),
-                error=str(e),
-                operation="search",
-                diagnostic_report=diagnostic_report
+                "搜尋運費數據", e, diagnostic_report=diagnostic_report
             )
             return records
 
-    def download_excel_for_record(self, record):
+    def download_excel_for_record(self, record: Dict[str, Any]) -> DownloadResult:
         """為特定運費記錄下載Excel檔案 - 修正stale element問題"""
-        self.logger.info(f"📥 下載記錄 {record['record_id']} 的Excel檔案...", operation="download")
+        assert self.driver is not None, "WebDriver must be initialized"
+        self.logger.info(
+            f"📥 下載記錄 {record['record_id']} 的Excel檔案...", operation="download"
+        )
 
         try:
             # 重新搜尋發票連結（避免 stale element reference）
@@ -480,7 +515,9 @@ class FreightScraper(ImprovedBaseScraper):
 
             # 提取純發票號碼（移除公司名稱部分）
             # 格式如：5081794203-宥芯有限公 -> 5081794203
-            base_invoice_no = invoice_no.split('-')[0] if '-' in invoice_no else invoice_no
+            base_invoice_no = (
+                invoice_no.split("-")[0] if "-" in invoice_no else invoice_no
+            )
             self.logger.debug(f"   提取純發票號碼: {base_invoice_no}")
 
             found_link = None
@@ -519,16 +556,22 @@ class FreightScraper(ImprovedBaseScraper):
                                     for link in links:
                                         link_text = link.text.strip()
                                         # 嘗試完整匹配或純號碼匹配
-                                        if (invoice_no in link_text or 
-                                            base_invoice_no in link_text or
-                                            link_text in invoice_no):
+                                        if (
+                                            invoice_no in link_text
+                                            or base_invoice_no in link_text
+                                            or link_text in invoice_no
+                                        ):
                                             found_link = link
-                                            self.logger.info(f"✅ 在表格中找到匹配連結: '{link_text}'")
+                                            self.logger.info(
+                                                f"✅ 在表格中找到匹配連結: '{link_text}'"
+                                            )
                                             break
                                     if found_link:
                                         break
                             except Exception as e:
-                                self.logger.warning(f"⚠️ 重新搜尋連結失敗: {e}", operation="search")
+                                self.logger.warning(
+                                    f"⚠️ 重新搜尋連結失敗: {e}", operation="search"
+                                )
 
             if found_link:
                 # 使用JavaScript點擊避免元素遮蔽問題
@@ -536,7 +579,10 @@ class FreightScraper(ImprovedBaseScraper):
                 self.logger.info(f"✅ 已點擊發票號碼 {invoice_no} 的連結")
                 time.sleep(Timeouts.PAGE_LOAD)
             else:
-                self.logger.warning(f"⚠️ 找不到發票號碼 {invoice_no} 的連結，將嘗試 data-fileblob 方法", operation="search")
+                self.logger.warning(
+                    f"⚠️ 找不到發票號碼 {invoice_no} 的連結，將嘗試 data-fileblob 方法",
+                    operation="search",
+                )
 
             downloaded_files = []
             record_id = record["record_id"]
@@ -557,7 +603,9 @@ class FreightScraper(ImprovedBaseScraper):
                         end_month = end_month_str
 
                     # 找到月份輸入框
-                    date_inputs = self.driver.find_elements(By.CSS_SELECTOR, 'input[type="text"]')
+                    date_inputs = self.driver.find_elements(
+                        By.CSS_SELECTOR, 'input[type="text"]'
+                    )
                     if len(date_inputs) >= 2:
                         # 填入開始月份
                         date_inputs[0].clear()
@@ -572,11 +620,15 @@ class FreightScraper(ImprovedBaseScraper):
                         # 只有一個月份輸入框，填入查詢月份
                         date_inputs[0].clear()
                         date_inputs[0].send_keys(start_month)
-                        self.logger.info(f"✅ 已填入查詢月份: {start_month}", operation="search")
+                        self.logger.info(
+                            f"✅ 已填入查詢月份: {start_month}", operation="search"
+                        )
 
                     # 點擊查詢按鈕
                     try:
-                        query_button = self.driver.find_element(By.CSS_SELECTOR, 'input[value*="查詢"]')
+                        query_button = self.driver.find_element(
+                            By.CSS_SELECTOR, 'input[value*="查詢"]'
+                        )
                         query_button.click()
                         self.logger.info(f"✅ 已點擊查詢按鈕", operation="search")
                         time.sleep(Timeouts.PAGE_LOAD)
@@ -584,7 +636,9 @@ class FreightScraper(ImprovedBaseScraper):
                         self.logger.warning(f"⚠️ 未找到查詢按鈕，跳過此步驟", operation="search")
 
                 except Exception as date_e:
-                    self.logger.warning(f"⚠️ 填入查詢月份失敗: {date_e}", error=str(date_e), operation="search")
+                    self.logger.warning(
+                        f"⚠️ 填入查詢月份失敗: {date_e}", error=str(date_e), operation="search"
+                    )
             else:
                 # 成功點擊連結進入詳細頁面，不需要設定月份，直接提取數據
                 self.logger.info(f"✅ 已進入發票詳細頁面，準備提取數據...", operation="download")
@@ -600,10 +654,14 @@ class FreightScraper(ImprovedBaseScraper):
 
                 if not fileblob_buttons:
                     # 如果找不到，嘗試其他可能的選擇器
-                    fileblob_buttons = self.driver.find_elements(By.XPATH, "//*[@data-fileblob]")
+                    fileblob_buttons = self.driver.find_elements(
+                        By.XPATH, "//*[@data-fileblob]"
+                    )
 
                 if fileblob_buttons:
-                    self.logger.info(f"✅ 找到 {len(fileblob_buttons)} 個包含 data-fileblob 的元素")
+                    self.logger.info(
+                        f"✅ 找到 {len(fileblob_buttons)} 個包含 data-fileblob 的元素"
+                    )
 
                     # 通常第一個就是我們要的匯出按鈕
                     fileblob_button = fileblob_buttons[0]
@@ -632,6 +690,9 @@ class FreightScraper(ImprovedBaseScraper):
                                 # 使用 openpyxl 創建 Excel 檔案
                                 wb = openpyxl.Workbook()
                                 ws = wb.active
+                                assert (
+                                    ws is not None
+                                ), "Workbook active sheet should not be None"
                                 ws.title = "運費明細"
 
                                 # 將數據寫入工作表
@@ -639,16 +700,19 @@ class FreightScraper(ImprovedBaseScraper):
                                     for col_index, cell_value in enumerate(row_data, 1):
                                         # 清理數據（移除HTML空格等）
                                         if isinstance(cell_value, str):
-                                            cell_value = cell_value.replace("&nbsp;", "").strip()
+                                            cell_value = cell_value.replace(
+                                                "&nbsp;", ""
+                                            ).strip()
 
-                                        ws.cell(row=row_index, column=col_index, value=cell_value)
+                                        ws.cell(
+                                            row=row_index,
+                                            column=col_index,
+                                            value=cell_value,
+                                        )
 
                                 # 設定表頭樣式
                                 if len(data_array) > 0:
-                                    from openpyxl.styles import (
-                                        Font,
-                                        PatternFill,
-                                    )
+                                    from openpyxl.styles import Font, PatternFill
 
                                     # 表頭加粗
                                     for col_index in range(1, len(data_array[0]) + 1):
@@ -661,9 +725,22 @@ class FreightScraper(ImprovedBaseScraper):
                                         )
 
                                 # 自動調整欄寬
+                                from openpyxl.cell.cell import Cell
+
                                 for column in ws.columns:
                                     max_length = 0
-                                    column_letter = column[0].column_letter
+                                    # 取得第一個 Cell 的 column_letter (跳過 MergedCell)
+                                    column_letter = None
+                                    for cell in column:
+                                        if isinstance(cell, Cell) and hasattr(
+                                            cell, "column_letter"
+                                        ):
+                                            column_letter = cell.column_letter
+                                            break
+
+                                    if column_letter is None:
+                                        continue
+
                                     for cell in column:
                                         try:
                                             if len(str(cell.value)) > max_length:
@@ -671,7 +748,9 @@ class FreightScraper(ImprovedBaseScraper):
                                         except Exception:
                                             pass
                                     adjusted_width = min(max_length + 2, 50)  # 最大寬度限制
-                                    ws.column_dimensions[column_letter].width = adjusted_width
+                                    ws.column_dimensions[
+                                        column_letter
+                                    ].width = adjusted_width
 
                                 # 生成檔案名稱
                                 # 優先使用 data-fileblob 中的檔案名，因為這是實際下載的內容
@@ -683,11 +762,15 @@ class FreightScraper(ImprovedBaseScraper):
                                 if filename_base and filename_base != "Excel":
                                     # 如果 data-fileblob 有有用的檔案名，使用它
                                     actual_invoice_info = filename_base
-                                    self.logger.info(f"📄 使用實際下載檔案名: {actual_invoice_info}")
+                                    self.logger.info(
+                                        f"📄 使用實際下載檔案名: {actual_invoice_info}"
+                                    )
                                 else:
                                     # 回退到搜尋時的發票號碼
                                     actual_invoice_info = search_invoice_no
-                                    self.logger.info(f"📄 回退使用搜尋發票號碼: {actual_invoice_info}")
+                                    self.logger.info(
+                                        f"📄 回退使用搜尋發票號碼: {actual_invoice_info}"
+                                    )
 
                                 # 生成最終檔案名
                                 if search_invoice_date:
@@ -707,8 +790,12 @@ class FreightScraper(ImprovedBaseScraper):
                                 wb.close()
 
                                 downloaded_files = [str(file_path)]
-                                self.logger.info(f"✅ 成功從 data-fileblob 生成 Excel: {filename}")
-                                self.logger.info(f"📁 檔案大小: {file_path.stat().st_size:,} bytes")
+                                self.logger.info(
+                                    f"✅ 成功從 data-fileblob 生成 Excel: {filename}"
+                                )
+                                self.logger.info(
+                                    f"📁 檔案大小: {file_path.stat().st_size:,} bytes"
+                                )
                                 self.logger.info(
                                     f"📋 數據行數: {len(data_array)} 行，"
                                     f"欄數: {len(data_array[0]) if data_array else 0} 欄"
@@ -720,17 +807,28 @@ class FreightScraper(ImprovedBaseScraper):
                                 self.logger.error(f"❌ data-fileblob 中沒有找到數據陣列")
                                 # 如果連結也找不到，這是完全失敗
                                 if not found_link:
-                                    self.logger.error(f"❌ 發票號碼 {invoice_no} 無法下載：連結未找到且 data-fileblob 無數據")
+                                    self.logger.error(
+                                        f"❌ 發票號碼 {invoice_no} 無法下載：連結未找到且 data-fileblob 無數據"
+                                    )
+                                return []
 
                         except json.JSONDecodeError as json_e:
-                            self.logger.error(f"❌ 解析 data-fileblob JSON 失敗: {json_e}", error=str(json_e))
+                            self.logger.error(
+                                f"❌ 解析 data-fileblob JSON 失敗: {json_e}",
+                                error=str(json_e),
+                            )
                             self.logger.info(f"   原始數據前500字元: {fileblob_data[:500]}")
+                            return []
 
                         except Exception as excel_e:
-                            self.logger.error(f"❌ 生成 Excel 檔案失敗: {excel_e}", error=str(excel_e))
+                            self.logger.error(
+                                f"❌ 生成 Excel 檔案失敗: {excel_e}", error=str(excel_e)
+                            )
+                            return []
 
                     else:
                         self.logger.error(f"❌ data-fileblob 屬性為空")
+                        return []
 
                 else:
                     self.logger.warning(f"⚠️ 未找到包含 data-fileblob 的元素")
@@ -741,7 +839,9 @@ class FreightScraper(ImprovedBaseScraper):
                 self.logger.error(f"❌ data-fileblob 提取失敗: {blob_e}", error=str(blob_e))
                 # 如果連結也找不到，說明兩種方法都失敗了
                 if not found_link:
-                    self.logger.error(f"❌ 發票號碼 {invoice_no} 無法下載：連結未找到且 data-fileblob 提取失敗")
+                    self.logger.error(
+                        f"❌ 發票號碼 {invoice_no} 無法下載：連結未找到且 data-fileblob 提取失敗"
+                    )
                 else:
                     self.logger.info(f"🔄 程式無法提取數據，請檢查頁面是否正確載入")
                 return []
@@ -756,29 +856,28 @@ class FreightScraper(ImprovedBaseScraper):
                     "record": record,
                     "current_url": self.driver.current_url if self.driver else None,
                     "start_month": self.start_month,
-                    "end_month": self.end_month
+                    "end_month": self.end_month,
                 },
                 capture_screenshot=True,
                 capture_page_source=True,
-                driver=self.driver
+                driver=self.driver,
             )
 
             self.logger.log_operation_failure(
-                f"下載記錄失敗: {e}",
-                str(e),
-                operation="download",
-                diagnostic_report=diagnostic_report
+                "下載記錄", e, diagnostic_report=diagnostic_report
             )
             return []
 
-    def run_full_process(self):
+    def run_full_process(self) -> List[str]:
         """執行完整的自動化流程"""
-        all_downloads = []
-        records = []
+        all_downloads: DownloadResult = []
+        records: List[Dict[str, Any]] = []
 
         try:
             self.logger.info("=" * 60)
-            self.logger.info(f"🚛 開始執行 WEDI 運費查詢流程 (帳號: {self.username})", operation="search")
+            self.logger.info(
+                f"🚛 開始執行 WEDI 運費查詢流程 (帳號: {self.username})", operation="search"
+            )
             self.logger.info("=" * 60)
 
             # 1. 瀏覽器已在 __init__ 中初始化
@@ -786,38 +885,20 @@ class FreightScraper(ImprovedBaseScraper):
             # 2. 登入
             login_success = self.login()
             if not login_success:
-                self.logger.log_operation_failure(f"帳號 {self.username} 登入", "登入失敗")
-                return {
-                    "success": False,
-                    "username": self.username,
-                    "error": "登入失敗",
-                    "downloads": [],
-                    "records": [],
-                }
+                self.logger.log_operation_failure("登入", Exception("登入失敗"))
+                return []
 
             # 3. 導航到查詢頁面（基礎導航）
             nav_success = self.navigate_to_query()
             if not nav_success:
-                self.logger.log_operation_failure(f"帳號 {self.username} 基礎導航", "導航失敗")
-                return {
-                    "success": False,
-                    "username": self.username,
-                    "error": "導航失敗",
-                    "downloads": [],
-                    "records": [],
-                }
+                self.logger.log_operation_failure("基礎導航", Exception("導航失敗"))
+                return []
 
             # 4. 導航到運費查詢頁面
             freight_nav_success = self.navigate_to_freight_page()
             if not freight_nav_success:
-                self.logger.log_operation_failure(f"帳號 {self.username} 運費頁面導航", "導航失敗")
-                return {
-                    "success": False,
-                    "username": self.username,
-                    "error": "運費頁面導航失敗",
-                    "downloads": [],
-                    "records": [],
-                }
+                self.logger.log_operation_failure("運費頁面導航", Exception("導航失敗"))
+                return []
 
             # 5. 設定月份範圍
             self.set_date_range()
@@ -827,13 +908,7 @@ class FreightScraper(ImprovedBaseScraper):
 
             if not records:
                 self.logger.warning(f"⚠️ 帳號 {self.username} 沒有找到運費記錄")
-                return {
-                    "success": True,
-                    "username": self.username,
-                    "message": "無資料可下載",
-                    "downloads": [],
-                    "records": [],
-                }
+                return []
 
             # 7. 下載每個記錄的Excel檔案
             for record in records:
@@ -844,28 +919,16 @@ class FreightScraper(ImprovedBaseScraper):
                     self.logger.warning(
                         f"⚠️ 帳號 {self.username} 下載記錄 "
                         f"{record.get('record_id', 'unknown')} 失敗: {download_e}",
-                        operation="download"
+                        operation="download",
                     )
                     continue
 
             self.logger.info(f"🎉 帳號 {self.username} 自動化流程完成！")
-
-            return {
-                "success": True,
-                "username": self.username,
-                "downloads": all_downloads,
-                "records": records,
-            }
+            return all_downloads
 
         except Exception as e:
             self.logger.info(f"💥 帳號 {self.username} 流程執行失敗: {e}", error=str(e))
-            return {
-                "success": False,
-                "username": self.username,
-                "error": str(e),
-                "downloads": all_downloads,
-                "records": records,
-            }
+            return all_downloads
         finally:
             self.close()
 
@@ -927,12 +990,24 @@ def main():
         start_month = f"{prev_year:04d}{prev_month:02d}"
         end_month = start_month  # 預設查詢單一月份
 
-        logger.info(f"📅 查詢月份範圍: {start_month} ~ {end_month} (預設上個月)", start_month=start_month, end_month=end_month)
+        logger.info(
+            f"📅 查詢月份範圍: {start_month} ~ {end_month} (預設上個月)",
+            start_month=start_month,
+            end_month=end_month,
+        )
     elif not end_month:
         end_month = start_month  # 如果只指定開始月份，結束月份使用相同值
-        logger.info(f"📅 查詢月份範圍: {start_month} ~ {end_month}", start_month=start_month, end_month=end_month)
+        logger.info(
+            f"📅 查詢月份範圍: {start_month} ~ {end_month}",
+            start_month=start_month,
+            end_month=end_month,
+        )
     else:
-        logger.info(f"📅 查詢月份範圍: {start_month} ~ {end_month}", start_month=start_month, end_month=end_month)
+        logger.info(
+            f"📅 查詢月份範圍: {start_month} ~ {end_month}",
+            start_month=start_month,
+            end_month=end_month,
+        )
 
     try:
         # 使用多帳號管理器

@@ -7,17 +7,21 @@
 
 import os
 import sys
+from typing import Optional, Tuple
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
 from .logging_config import get_logger
 
 
-def init_chrome_browser(headless=False, download_dir=None):
+def init_chrome_browser(
+    headless: bool = False, download_dir: Optional[str] = None
+) -> Tuple[WebDriver, WebDriverWait]:
     """
     初始化 Chrome 瀏覽器
 
@@ -59,9 +63,13 @@ def init_chrome_browser(headless=False, download_dir=None):
     chrome_binary_path = os.getenv("CHROME_BINARY_PATH")
     if chrome_binary_path:
         chrome_options.binary_location = chrome_binary_path
-        logger.info(f"🌐 使用指定 Chrome 路徑: {chrome_binary_path}", chrome_path=chrome_binary_path)
+        logger.info(
+            f"🌐 使用指定 Chrome 路徑: {chrome_binary_path}", chrome_path=chrome_binary_path
+        )
     else:
-        logger.warning("⚠️ 未設定 CHROME_BINARY_PATH 環境變數，使用系統預設 Chrome", chrome_path="system_default")
+        logger.warning(
+            "⚠️ 未設定 CHROME_BINARY_PATH 環境變數，使用系統預設 Chrome", chrome_path="system_default"
+        )
 
     # 設定下載路徑和安全設定
     if download_dir:
@@ -81,10 +89,16 @@ def init_chrome_browser(headless=False, download_dir=None):
         chrome_options.add_argument("--disable-web-security")
         chrome_options.add_argument("--allow-running-insecure-content")
         chrome_options.add_argument("--disable-features=VizDisplayCompositor")
-        chrome_options.add_argument("--disable-features=BlockInsecurePrivateNetworkRequests")
+        chrome_options.add_argument(
+            "--disable-features=BlockInsecurePrivateNetworkRequests"
+        )
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_argument("--disable-features=DownloadBubble,DownloadBubbleV2")
-        chrome_options.add_argument("--disable-component-extensions-with-background-pages")
+        chrome_options.add_argument(
+            "--disable-features=DownloadBubble,DownloadBubbleV2"
+        )
+        chrome_options.add_argument(
+            "--disable-component-extensions-with-background-pages"
+        )
         chrome_options.add_argument("--disable-default-apps")
         chrome_options.add_argument("--disable-client-side-phishing-detection")
         chrome_options.add_argument("--disable-hang-monitor")
@@ -112,9 +126,17 @@ def init_chrome_browser(headless=False, download_dir=None):
         try:
             service = Service(chromedriver_path)
             driver = webdriver.Chrome(service=service, options=chrome_options)
-            logger.log_operation_success("ChromeDriver 啟動", chromedriver_path=chromedriver_path, method="specified_path")
+            logger.log_operation_success(
+                "ChromeDriver 啟動",
+                chromedriver_path=chromedriver_path,
+                method="specified_path",
+            )
         except Exception as env_error:
-            logger.warning(f"⚠️ 指定的 ChromeDriver 路徑失敗: {env_error}", chromedriver_path=chromedriver_path, error=str(env_error))
+            logger.warning(
+                f"⚠️ 指定的 ChromeDriver 路徑失敗: {env_error}",
+                chromedriver_path=chromedriver_path,
+                error=str(env_error),
+            )
 
     # 方法2: 嘗試使用系統 ChromeDriver (通常最穩定)
     if not driver:
@@ -131,7 +153,11 @@ def init_chrome_browser(headless=False, download_dir=None):
             driver = webdriver.Chrome(service=service, options=chrome_options)
             logger.log_operation_success("Chrome 啟動", method="system_chrome")
         except Exception as system_error:
-            logger.warning(f"⚠️ 系統 Chrome 失敗: {system_error}", method="system_chrome", error=str(system_error))
+            logger.warning(
+                f"⚠️ 系統 Chrome 失敗: {system_error}",
+                method="system_chrome",
+                error=str(system_error),
+            )
 
     # 方法3: 最後嘗試 WebDriver Manager (可能有架構問題)
     if not driver:
@@ -146,7 +172,11 @@ def init_chrome_browser(headless=False, download_dir=None):
             driver = webdriver.Chrome(service=service, options=chrome_options)
             logger.log_operation_success("Chrome 啟動", method="webdriver_manager")
         except Exception as wdm_error:
-            logger.error(f"⚠️ WebDriver Manager 也失敗: {wdm_error}", method="webdriver_manager", error=str(wdm_error))
+            logger.error(
+                f"⚠️ WebDriver Manager 也失敗: {wdm_error}",
+                method="webdriver_manager",
+                error=str(wdm_error),
+            )
 
     # 如果所有方法都失敗
     if not driver:
@@ -155,7 +185,9 @@ def init_chrome_browser(headless=False, download_dir=None):
    2. 手動下載 ChromeDriver 並設定到 .env 檔案: CHROMEDRIVER_PATH="C:\\path\\to\\chromedriver.exe"
    3. 或將 ChromeDriver 放入系統 PATH
    4. 執行以下命令清除緩存: rmdir /s "%USERPROFILE%\\.wdm" """
-        logger.critical("❌ 無法啟動 Chrome 瀏覽器", troubleshooting_steps=error_msg, exc_info=True)
+        logger.critical(
+            "❌ 無法啟動 Chrome 瀏覽器", troubleshooting_steps=error_msg, exc_info=True
+        )
         raise Exception("無法啟動 Chrome 瀏覽器")
 
     # 創建 WebDriverWait 實例

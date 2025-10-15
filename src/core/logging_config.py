@@ -43,7 +43,7 @@ class StructuredFormatter(logging.Formatter):
 
         # 添加額外的上下文資訊
         if hasattr(record, "extra_data"):
-            log_data.update(record.extra_data)
+            log_data.update(record.extra_data)  # type: ignore[attr-defined]
 
         # 如果有異常資訊，添加到日誌中
         if record.exc_info:
@@ -66,7 +66,13 @@ class ConsoleFormatter(logging.Formatter):
     }
 
     # 定義 emoji 映射
-    EMOJIS = {"DEBUG": "🔍", "INFO": "ℹ️", "WARNING": "⚠️", "ERROR": "❌", "CRITICAL": "🚨"}
+    EMOJIS = {
+        "DEBUG": "🔍",
+        "INFO": "ℹ️",
+        "WARNING": "⚠️",
+        "ERROR": "❌",
+        "CRITICAL": "🚨",
+    }
 
     def format(self, record: logging.LogRecord) -> str:
         """格式化控制台日誌（簡潔版本）"""
@@ -176,18 +182,25 @@ class ScrapingLogger:
         """記錄操作開始"""
         self.info(f"開始 {operation}", operation=operation, **context)
 
-    def log_operation_success(self, operation: str, duration: Optional[float] = None, **context):
+    def log_operation_success(
+        self, operation: str, duration: Optional[float] = None, **context
+    ):
         """記錄操作成功"""
         extra_data = {"operation": operation, **context}
         if duration is not None:
             extra_data["duration_seconds"] = duration
         self.info(f"✅ {operation} 成功完成", **extra_data)
 
-    def log_operation_failure(self, operation: str, error: Union[str, Exception], **context):
+    def log_operation_failure(
+        self, operation: str, error: Union[str, Exception], **context
+    ):
         """記錄操作失敗"""
         error_msg = str(error)
         self.error(
-            f"❌ {operation} 失敗: {error_msg}", operation=operation, error=error_msg, **context
+            f"❌ {operation} 失敗: {error_msg}",
+            operation=operation,
+            error=error_msg,
+            **context,
         )
 
     def log_data_info(self, message: str, count: Optional[int] = None, **context):
@@ -224,7 +237,7 @@ class LoggingContext:
         self.logger = logger
         self.operation = operation
         self.context = context
-        self.start_time = None
+        self.start_time: Optional[datetime] = None
 
     def __enter__(self):
         self.start_time = datetime.now()
@@ -232,6 +245,7 @@ class LoggingContext:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        assert self.start_time is not None, "Context manager not properly entered"
         duration = (datetime.now() - self.start_time).total_seconds()
 
         if exc_type is None:
@@ -246,7 +260,9 @@ class LoggingContext:
 _global_logger: Optional[ScrapingLogger] = None
 
 
-def get_logger(name: Optional[str] = None, log_dir: Optional[Path] = None) -> ScrapingLogger:
+def get_logger(
+    name: Optional[str] = None, log_dir: Optional[Path] = None
+) -> ScrapingLogger:
     """
     取得日誌記錄器實例
 
