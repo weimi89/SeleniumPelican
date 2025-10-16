@@ -2,7 +2,7 @@
 
 ## 支援平台
 - **Windows**: Windows 10/11 (PowerShell 5.1+ / PowerShell 7+)
-- **macOS**: macOS 10.14+ 
+- **macOS**: macOS 10.14+
 - **Linux**: Ubuntu 18.04+ 及其他主流發行版
 
 ## 跨平台設計策略
@@ -35,7 +35,7 @@
 # macOS
 CHROME_BINARY_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
-# Windows  
+# Windows
 CHROME_BINARY_PATH="C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
 
 # Linux
@@ -75,7 +75,7 @@ export PYTHONPATH="$(pwd)"
 - UTF-8 輸出編碼確保中文正確顯示
 - 彩色終端輸出支援
 
-### 2. macOS 最佳化  
+### 2. macOS 最佳化
 - Homebrew 套件管理器整合
 - 系統 Chrome 路徑自動偵測
 - Terminal.app 完整支援

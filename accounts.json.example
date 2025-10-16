@@ -1,18 +1,18 @@
 {
   "accounts": [
     {
-      "username": "您的宅配通客代1", 
-      "password": "您的密碼1", 
+      "username": "您的宅配通客代1",
+      "password": "您的密碼1",
       "enabled": true
     },
     {
-      "username": "您的宅配通客代2", 
-      "password": "您的密碼2", 
+      "username": "您的宅配通客代2",
+      "password": "您的密碼2",
       "enabled": true
     },
     {
-      "username": "您的宅配通客代3", 
-      "password": "您的密碼3", 
+      "username": "您的宅配通客代3",
+      "password": "您的密碼3",
       "enabled": false
     }
   ],

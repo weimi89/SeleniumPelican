@@ -18,14 +18,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.core.log_analyzer import LogAnalyzer, create_monitoring_dashboard_data
-from src.core.monitoring_service import MonitoringService, FileAlertChannel
+from src.core.monitoring_service import FileAlertChannel, MonitoringService
 from src.utils.windows_encoding_utils import safe_print
 
 
 def setup_argument_parser():
     """設定命令列參數解析器"""
     parser = argparse.ArgumentParser(
-        description='SeleniumPelican 日誌監控工具',
+        description="SeleniumPelican 日誌監控工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用範例:
@@ -43,101 +43,55 @@ def setup_argument_parser():
 
   # 檢查特定日期範圍
   python scripts/log_monitor.py analyze --start "2024-12-01 00:00:00" --end "2024-12-02 00:00:00"
-        """
+        """,
     )
 
-    subparsers = parser.add_subparsers(dest='command', help='可用命令')
+    subparsers = parser.add_subparsers(dest="command", help="可用命令")
 
     # 分析命令
-    analyze_parser = subparsers.add_parser('analyze', help='分析日誌檔案')
+    analyze_parser = subparsers.add_parser("analyze", help="分析日誌檔案")
+    analyze_parser.add_argument("--log-dir", default="logs", help="日誌目錄路徑 (預設: logs)")
+    analyze_parser.add_argument("--hours", type=int, help="分析最近 N 小時的日誌")
+    analyze_parser.add_argument("--start", help='開始時間 (格式: "YYYY-MM-DD HH:MM:SS")')
+    analyze_parser.add_argument("--end", help='結束時間 (格式: "YYYY-MM-DD HH:MM:SS")')
     analyze_parser.add_argument(
-        '--log-dir',
-        default='logs',
-        help='日誌目錄路徑 (預設: logs)'
+        "--format", choices=["json", "markdown"], default="json", help="輸出格式 (預設: json)"
     )
+    analyze_parser.add_argument("--output", help="輸出檔案路徑 (若未指定則輸出到標準輸出)")
     analyze_parser.add_argument(
-        '--hours',
-        type=int,
-        help='分析最近 N 小時的日誌'
-    )
-    analyze_parser.add_argument(
-        '--start',
-        help='開始時間 (格式: "YYYY-MM-DD HH:MM:SS")'
-    )
-    analyze_parser.add_argument(
-        '--end',
-        help='結束時間 (格式: "YYYY-MM-DD HH:MM:SS")'
-    )
-    analyze_parser.add_argument(
-        '--format',
-        choices=['json', 'markdown'],
-        default='json',
-        help='輸出格式 (預設: json)'
-    )
-    analyze_parser.add_argument(
-        '--output',
-        help='輸出檔案路徑 (若未指定則輸出到標準輸出)'
-    )
-    analyze_parser.add_argument(
-        '--pattern',
-        default='*.json',
-        help='日誌檔案模式 (預設: *.json)'
+        "--pattern", default="*.json", help="日誌檔案模式 (預設: *.json)"
     )
 
     # 監控命令
-    monitor_parser = subparsers.add_parser('monitor', help='啟動即時監控')
+    monitor_parser = subparsers.add_parser("monitor", help="啟動即時監控")
+    monitor_parser.add_argument("--log-dir", default="logs", help="日誌目錄路徑 (預設: logs)")
     monitor_parser.add_argument(
-        '--log-dir',
-        default='logs',
-        help='日誌目錄路徑 (預設: logs)'
+        "--interval", type=int, default=300, help="檢查間隔秒數 (預設: 300)"
     )
     monitor_parser.add_argument(
-        '--interval',
-        type=int,
-        default=300,
-        help='檢查間隔秒數 (預設: 300)'
+        "--alert-file",
+        default="logs/alerts.jsonl",
+        help="警報輸出檔案 (預設: logs/alerts.jsonl)",
     )
-    monitor_parser.add_argument(
-        '--alert-file',
-        default='logs/alerts.jsonl',
-        help='警報輸出檔案 (預設: logs/alerts.jsonl)'
-    )
-    monitor_parser.add_argument(
-        '--dashboard',
-        help='儀表板 HTML 檔案路徑 (若指定則定期更新)'
-    )
+    monitor_parser.add_argument("--dashboard", help="儀表板 HTML 檔案路徑 (若指定則定期更新)")
 
     # 儀表板命令
-    dashboard_parser = subparsers.add_parser('dashboard', help='生成監控儀表板')
+    dashboard_parser = subparsers.add_parser("dashboard", help="生成監控儀表板")
+    dashboard_parser.add_argument("--log-dir", default="logs", help="日誌目錄路徑 (預設: logs)")
     dashboard_parser.add_argument(
-        '--log-dir',
-        default='logs',
-        help='日誌目錄路徑 (預設: logs)'
+        "--output",
+        default="monitoring_dashboard.html",
+        help="儀表板檔案路徑 (預設: monitoring_dashboard.html)",
     )
     dashboard_parser.add_argument(
-        '--output',
-        default='monitoring_dashboard.html',
-        help='儀表板檔案路徑 (預設: monitoring_dashboard.html)'
-    )
-    dashboard_parser.add_argument(
-        '--hours',
-        type=int,
-        default=24,
-        help='分析最近 N 小時的數據 (預設: 24)'
+        "--hours", type=int, default=24, help="分析最近 N 小時的數據 (預設: 24)"
     )
 
     # 統計命令
-    stats_parser = subparsers.add_parser('stats', help='顯示日誌統計')
+    stats_parser = subparsers.add_parser("stats", help="顯示日誌統計")
+    stats_parser.add_argument("--log-dir", default="logs", help="日誌目錄路徑 (預設: logs)")
     stats_parser.add_argument(
-        '--log-dir',
-        default='logs',
-        help='日誌目錄路徑 (預設: logs)'
-    )
-    stats_parser.add_argument(
-        '--hours',
-        type=int,
-        default=24,
-        help='統計最近 N 小時的數據 (預設: 24)'
+        "--hours", type=int, default=24, help="統計最近 N 小時的數據 (預設: 24)"
     )
 
     return parser
@@ -194,7 +148,7 @@ def command_analyze(args):
         if args.output:
             output_path = Path(args.output)
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 f.write(report)
             safe_print(f"✅ 分析報告已儲存至: {output_path}")
         else:
@@ -240,6 +194,7 @@ def command_monitor(args):
         # 如果指定了儀表板，定期更新
         if args.dashboard:
             import time
+
             dashboard_path = Path(args.dashboard)
             dashboard_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -254,6 +209,7 @@ def command_monitor(args):
             try:
                 while service.is_running:
                     import time
+
                     time.sleep(1)
             except KeyboardInterrupt:
                 pass
@@ -324,11 +280,11 @@ def command_stats(args):
         dashboard_data = create_monitoring_dashboard_data(analyzer, args.hours)
 
         # 顯示統計
-        safe_print("\n" + "="*50)
+        safe_print("\n" + "=" * 50)
         safe_print("📊 日誌統計摘要")
-        safe_print("="*50)
+        safe_print("=" * 50)
 
-        metrics = dashboard_data.get('metrics', {})
+        metrics = dashboard_data.get("metrics", {})
         safe_print(f"整體狀態: {dashboard_data.get('status', 'unknown').upper()}")
         safe_print(f"總日誌數量: {metrics.get('total_logs', 0):,}")
         safe_print(f"錯誤率: {metrics.get('error_rate', 0):.1%}")
@@ -336,8 +292,8 @@ def command_stats(args):
         safe_print(f"嚴重警報: {metrics.get('critical_alerts', 0)}")
 
         # 顯示性能統計
-        performance = dashboard_data.get('performance', {})
-        operations = performance.get('operations', {})
+        performance = dashboard_data.get("performance", {})
+        operations = performance.get("operations", {})
         if operations:
             safe_print("\n📈 操作性能統計:")
             for op_name, stats in operations.items():
@@ -347,21 +303,21 @@ def command_stats(args):
                 safe_print(f"    平均時間: {stats.get('avg_duration', 0):.2f}s")
 
         # 顯示活躍警報
-        alerts = dashboard_data.get('alerts', [])
+        alerts = dashboard_data.get("alerts", [])
         if alerts:
             safe_print(f"\n⚠️ 活躍警報 ({len(alerts)}):")
             for alert in alerts[:5]:  # 只顯示前 5 個
                 severity_emoji = {
-                    'critical': '🔴',
-                    'error': '❌',
-                    'warning': '⚠️',
-                    'info': 'ℹ️'
-                }.get(alert.get('severity', 'info'), '•')
-                name = alert.get('name', alert.get('type', 'Unknown'))
-                description = alert.get('description', '')
+                    "critical": "🔴",
+                    "error": "❌",
+                    "warning": "⚠️",
+                    "info": "ℹ️",
+                }.get(alert.get("severity", "info"), "•")
+                name = alert.get("name", alert.get("type", "Unknown"))
+                description = alert.get("description", "")
                 safe_print(f"  {severity_emoji} {name}: {description}")
 
-        safe_print("\n" + "="*50)
+        safe_print("\n" + "=" * 50)
 
         return 0
 
@@ -380,13 +336,13 @@ def main():
         return 1
 
     # 執行對應命令
-    if args.command == 'analyze':
+    if args.command == "analyze":
         return command_analyze(args)
-    elif args.command == 'monitor':
+    elif args.command == "monitor":
         return command_monitor(args)
-    elif args.command == 'dashboard':
+    elif args.command == "dashboard":
         return command_dashboard(args)
-    elif args.command == 'stats':
+    elif args.command == "stats":
         return command_stats(args)
     else:
         safe_print(f"❌ 未知命令: {args.command}")

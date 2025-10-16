@@ -106,7 +106,15 @@ class PaymentScraper(ImprovedBaseScraper):
         )
 
         try:
-            # 已經在iframe中，嘗試尋找日期輸入框
+            # 快速檢查是否有日期輸入框 (2秒超時)
+            # WEDI 某些查詢頁面可能不需要手動輸入日期
+            has_date_inputs = False
+            if self.waiter:
+                has_date_inputs = self.waiter.wait_for_element_visible(
+                    By.CSS_SELECTOR, 'input[type="text"]', timeout=2
+                )
+
+            # 嘗試尋找所有日期輸入框
             date_inputs = self.driver.find_elements(
                 By.CSS_SELECTOR, 'input[type="text"]'
             )
@@ -160,10 +168,11 @@ class PaymentScraper(ImprovedBaseScraper):
                         "⚠️ 未找到查詢按鈕，直接繼續流程", operation="query_button_search"
                     )
             else:
-                self.logger.warning(
-                    "⚠️ 未找到日期輸入框，可能不需要設定日期",
+                # 頁面沒有足夠的日期輸入框，這在某些 WEDI 查詢類型中是正常的
+                self.logger.info(
+                    "ℹ️ 頁面無需手動設定日期 (未找到日期輸入框)",
                     found_inputs=len(date_inputs),
-                    operation="date_input_search",
+                    operation="date_input_check",
                 )
 
             return True
