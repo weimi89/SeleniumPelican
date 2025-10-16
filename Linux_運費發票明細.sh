@@ -52,7 +52,7 @@ if [[ ! " $* " == *" --start-month "* ]] && [[ ! " $* " == *" --end-month "* ]];
 fi
 
 # 顯示執行命令
-cmd_str="uv run python -u src/scrapers/freight_scraper.py"
+cmd_str="$UV_CMD run python -u src/scrapers/freight_scraper.py"
 if [ $# -gt 0 ]; then
     cmd_str="$cmd_str $*"
 fi
@@ -62,7 +62,7 @@ echo ""
 # 執行 Python 程式
 echo "🚀 啟動運費(月結)結帳資料查詢功能"
 echo ""
-uv run python -u src/scrapers/freight_scraper.py "$@"
+"$UV_CMD" run python -u src/scrapers/freight_scraper.py "$@"
 exit_code=$?
 
 # 檢查執行結果

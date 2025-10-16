@@ -52,7 +52,7 @@ if [[ ! " $* " == *" --start-date "* ]] && [[ ! " $* " == *" --end-date "* ]]; t
 fi
 
 # 顯示執行命令
-cmd_str="uv run python -u src/scrapers/payment_scraper.py"
+cmd_str="$UV_CMD run python -u src/scrapers/payment_scraper.py"
 if [ $# -gt 0 ]; then
     cmd_str="$cmd_str $*"
 fi
@@ -62,7 +62,7 @@ echo ""
 # 執行 Python 程式
 echo "🚀 啟動代收貨款匯款明細查詢功能"
 echo ""
-uv run python -u src/scrapers/payment_scraper.py "$@"
+"$UV_CMD" run python -u src/scrapers/payment_scraper.py "$@"
 exit_code=$?
 
 # 檢查執行結果
