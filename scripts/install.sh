@@ -401,7 +401,7 @@ if [ "$IS_UBUNTU" = true ]; then
     echo "  1. 編輯 accounts.json 檔案，填入實際的帳號資訊"
     echo "  2. 確認 accounts.json 中設定 \"headless\": true（無頭環境）"
     echo "  3. 執行環境驗證: ./scripts/test_ubuntu_env.sh"
-    echo "  4. 測試瀏覽器: uv run python scripts/test_browser.py"
+    echo "  4. 測試瀏覽器: ./scripts/run_test_browser.sh"
     echo "  5. 執行配置驗證: ./Linux_配置驗證.sh"
 else
     echo "📝 後續步驟："
@@ -423,7 +423,7 @@ if [ "$IS_UBUNTU" = true ]; then
     echo ""
     echo "🧪 Ubuntu 環境測試工具："
     echo "• ./scripts/test_ubuntu_env.sh - Ubuntu 環境驗證"
-    echo "• uv run python scripts/test_browser.py - 瀏覽器功能測試"
+    echo "• ./scripts/run_test_browser.sh - 瀏覽器功能測試"
 fi
 
 echo ""
