@@ -30,6 +30,13 @@ echo "📦 SeleniumPelican 安裝工具"
 echo "=========================="
 echo ""
 
+# 檢查是否為 root 使用者
+if [ "$EUID" -eq 0 ]; then
+    print_warning "⚠️  偵測到以 root 使用者執行"
+    print_info "注意: 某些套件（如 UV）可能需要特殊處理"
+    echo ""
+fi
+
 print_info "檢查系統環境..."
 
 # 偵測作業系統
@@ -113,15 +120,22 @@ if [ "$CHROME_INSTALLED" = false ] && [ "$IS_UBUNTU" = true ]; then
     echo ""
     print_info "正在執行 Ubuntu 自動化設定..."
 
-    # 檢查 sudo 權限
-    if ! sudo -v; then
-        print_error "需要 sudo 權限安裝系統套件"
-        exit 1
+    # 檢查權限（root 使用者不需要 sudo）
+    if [ "$EUID" -ne 0 ]; then
+        if ! sudo -v; then
+            print_error "需要 sudo 權限安裝系統套件"
+            print_info "建議: 使用 root 使用者執行此腳本以避免權限問題"
+            exit 1
+        fi
+        SUDO_CMD="sudo"
+    else
+        print_info "偵測到 root 使用者，直接安裝系統套件"
+        SUDO_CMD=""
     fi
 
     # 更新套件清單
     print_info "更新系統套件清單..."
-    if sudo apt update -qq; then
+    if $SUDO_CMD apt update -qq; then
         print_success "套件清單更新完成"
     else
         print_warning "套件清單更新失敗，但繼續執行"
@@ -129,7 +143,7 @@ if [ "$CHROME_INSTALLED" = false ] && [ "$IS_UBUNTU" = true ]; then
 
     # 安裝 Chromium
     print_info "安裝 Chromium 瀏覽器..."
-    if sudo apt install -y chromium-browser; then
+    if $SUDO_CMD apt install -y chromium-browser; then
         CHROMIUM_VERSION=$(chromium-browser --version 2>/dev/null || echo "unknown")
         print_success "Chromium 安裝完成 ($CHROMIUM_VERSION)"
         CHROME_INSTALLED=true
@@ -141,7 +155,7 @@ if [ "$CHROME_INSTALLED" = false ] && [ "$IS_UBUNTU" = true ]; then
 
     # 安裝 ChromeDriver
     print_info "安裝 ChromeDriver..."
-    if sudo apt install -y chromium-chromedriver; then
+    if $SUDO_CMD apt install -y chromium-chromedriver; then
         CHROMEDRIVER_VERSION=$(chromedriver --version 2>/dev/null | cut -d' ' -f2 || echo "unknown")
         print_success "ChromeDriver 安裝完成 (版本: $CHROMEDRIVER_VERSION)"
         CHROMEDRIVER_PATH=$(which chromedriver 2>/dev/null || echo "/usr/bin/chromedriver")
@@ -172,19 +186,51 @@ echo ""
 
 # 步驟 1: 檢查並安裝 uv
 echo "📋 步驟 1: 安裝 UV 包管理器"
+
+# 檢測當前使用者
+if [ "$EUID" -eq 0 ]; then
+    print_info "當前使用者: root"
+    UV_INSTALL_DIR="/root/.local/bin"
+else
+    print_info "當前使用者: $(whoami)"
+    UV_INSTALL_DIR="$HOME/.local/bin"
+fi
+
 if command -v uv &> /dev/null; then
     UV_VERSION=$(uv --version)
     echo "✅ uv 已安裝: $UV_VERSION"
 else
     echo "⬇️ 正在安裝 UV..."
     if curl -LsSf https://astral.sh/uv/install.sh | sh; then
-        # 重新載入 shell 設定
-        export PATH="$HOME/.cargo/bin:$PATH"
+        # 更新 PATH
+        export PATH="$UV_INSTALL_DIR:$HOME/.cargo/bin:$PATH"
+
+        # 載入環境設定檔（如果存在）
+        if [ -f "$UV_INSTALL_DIR/env" ]; then
+            source "$UV_INSTALL_DIR/env"
+        fi
+
+        # 驗證安裝（嘗試多種方法）
         if command -v uv &> /dev/null; then
             UV_VERSION=$(uv --version)
             echo "✅ UV 安裝成功: $UV_VERSION"
+        elif [ -x "$UV_INSTALL_DIR/uv" ]; then
+            # 使用絕對路徑
+            export PATH="$UV_INSTALL_DIR:$PATH"
+            UV_VERSION=$("$UV_INSTALL_DIR/uv" --version)
+            echo "✅ UV 安裝成功（使用絕對路徑）: $UV_VERSION"
+
+            # 建立函式代替 alias（在腳本中 alias 不生效）
+            uv() { "$UV_INSTALL_DIR/uv" "$@"; }
+            export -f uv
         else
-            echo "❌ UV 安裝失敗，請手動安裝: https://docs.astral.sh/uv/"
+            echo "❌ UV 安裝失敗，找不到執行檔"
+            echo "預期路徑: $UV_INSTALL_DIR/uv"
+            echo "實際情況:"
+            ls -la "$UV_INSTALL_DIR/" 2>/dev/null || echo "  目錄不存在"
+            echo ""
+            echo "請手動安裝: https://docs.astral.sh/uv/"
+            echo "提示: 安裝後執行 'source $UV_INSTALL_DIR/env' 然後重新執行此腳本"
             exit 1
         fi
     else
