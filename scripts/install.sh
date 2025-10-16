@@ -403,12 +403,6 @@ if [ "$IS_UBUNTU" = true ]; then
     echo "  3. 執行環境驗證: ./scripts/test_ubuntu_env.sh"
     echo "  4. 測試瀏覽器: python3 scripts/test_browser.py"
     echo "  5. 執行配置驗證: ./Linux_配置驗證.sh"
-    echo ""
-    print_warning "安全提醒:"
-    echo "  ⚠️  請勿將 .env 和 accounts.json 提交到版本控制"
-    echo "  ⚠️  這些檔案已自動設定為僅擁有者可讀寫（權限 600）"
-    echo ""
-    print_info "完整文檔: docs/technical/ubuntu-deployment-guide.md"
 else
     echo "📝 後續步驟："
     echo "1. 編輯 .env 檔案，設定正確的 Chrome 路徑"
