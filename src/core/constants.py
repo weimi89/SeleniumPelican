@@ -115,15 +115,6 @@ class RetryConfig:
     EXPONENTIAL_BACKOFF = True
 
 
-
-
-
-
-
-
-
-
-
 class LoggingConfig:
     """日誌設定"""
 
@@ -132,6 +123,3 @@ class LoggingConfig:
     LOG_LEVEL = "INFO"
     LOG_FILE_MAX_SIZE = 10 * 1024 * 1024  # 10MB
     LOG_BACKUP_COUNT = 5
-
-
-

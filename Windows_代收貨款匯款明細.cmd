@@ -44,4 +44,4 @@ echo 🚀 使用傳統 PowerShell 啟動...
 start "WEDI 代收貨款查詢" powershell -NoExit -ExecutionPolicy Bypass -Command "Set-Location '%CD%'; & '.\scripts\run_payment.ps1'" %*
 
 :end
-popd
+popd

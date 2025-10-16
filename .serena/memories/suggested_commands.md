@@ -59,7 +59,7 @@ run_payment.cmd --headless
 ```
 
 ### 運費查詢
-```bash  
+```bash
 # Windows
 run_freight.cmd
 run_freight.ps1
@@ -86,7 +86,7 @@ run_unpaid.ps1
 # 代收貨款查詢
 PYTHONPATH="$(pwd)" uv run python -u src/scrapers/payment_scraper.py
 
-# 運費查詢  
+# 運費查詢
 PYTHONPATH="$(pwd)" uv run python -u src/scrapers/freight_scraper.py
 
 # 運費未請款明細

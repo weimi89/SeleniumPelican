@@ -44,4 +44,4 @@ echo 🚀 使用傳統 PowerShell 啟動...
 start "WEDI 運費查詢" powershell -NoExit -ExecutionPolicy Bypass -Command "Set-Location '%CD%'; & '.\scripts\run_freight.ps1'" %*
 
 :end
-popd
+popd

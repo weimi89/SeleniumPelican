@@ -562,7 +562,6 @@ class ImprovedBaseScraper(ABC):
                     )
 
                 self.logger.info("✅ 已切換到 datamain iframe，準備處理數據")
-                self.logger.log_operation_success("導航到查詢頁面")
                 return True
 
         except (IframeError, NavigationError):

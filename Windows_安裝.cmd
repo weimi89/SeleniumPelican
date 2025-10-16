@@ -44,4 +44,4 @@ echo 🚀 使用傳統 PowerShell 啟動...
 start "SeleniumPelican 安裝" powershell -NoExit -ExecutionPolicy Bypass -Command "Set-Location '%CD%'; & '.\scripts\install.ps1'" %*
 
 :end
-popd
+popd
