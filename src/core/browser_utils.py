@@ -52,9 +52,24 @@ def init_chrome_browser(
     chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
     chrome_options.add_experimental_option("useAutomationExtension", False)
 
+    # Ubuntu/Linux 平台特定優化
+    is_linux = sys.platform.startswith("linux")
+    if is_linux:
+        chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+        chrome_options.add_argument("--disable-software-rasterizer")
+        chrome_options.add_argument("--disable-gpu")
+        logger.info("🐧 檢測到 Linux 環境，已套用 Ubuntu 優化參數", platform="linux")
+
     # 如果設定為無頭模式，添加 headless 參數
     if headless:
-        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless=new")  # 使用新版無頭模式
+        if is_linux:
+            # Linux 無頭模式記憶體優化
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--disable-software-rasterizer")
+            logger.info("🔧 已套用 Ubuntu 無頭模式記憶體優化", mode="headless", platform="linux")
+        else:
+            chrome_options.add_argument("--disable-gpu")
         logger.info("🔇 使用無頭模式（不顯示瀏覽器視窗）", mode="headless")
     else:
         logger.info("🖥️ 使用視窗模式（顯示瀏覽器）", mode="windowed")
@@ -62,6 +77,14 @@ def init_chrome_browser(
     # 從環境變數讀取 Chrome 路徑（跨平台設定）
     chrome_binary_path = os.getenv("CHROME_BINARY_PATH")
     if chrome_binary_path:
+        # 驗證路徑是否存在
+        if not os.path.exists(chrome_binary_path):
+            error_msg = f"Chrome 二進位檔案不存在: {chrome_binary_path}"
+            if is_linux:
+                error_msg += "\n💡 Ubuntu 系統建議安裝: sudo apt install chromium-browser"
+            logger.critical(error_msg, chrome_path=chrome_binary_path, platform=sys.platform)
+            raise FileNotFoundError(error_msg)
+
         chrome_options.binary_location = chrome_binary_path
         logger.info(
             f"🌐 使用指定 Chrome 路徑: {chrome_binary_path}", chrome_path=chrome_binary_path
@@ -180,15 +203,29 @@ def init_chrome_browser(
 
     # 如果所有方法都失敗
     if not driver:
-        error_msg = """所有方法都失敗，請檢查以下項目:
+        # 根據平台提供不同的故障排除步驟
+        if is_linux:
+            error_msg = """所有方法都失敗，請檢查以下項目:
+   1. 安裝 Chromium: sudo apt install chromium-browser chromium-chromedriver
+   2. 設定 .env 檔案:
+      CHROME_BINARY_PATH=/usr/bin/chromium-browser
+      CHROMEDRIVER_PATH=/usr/bin/chromedriver
+   3. 驗證安裝: chromium-browser --version && chromedriver --version
+   4. 檢查權限: ls -la /usr/bin/chromium-browser /usr/bin/chromedriver"""
+        else:
+            error_msg = """所有方法都失敗，請檢查以下項目:
    1. 確認已安裝 Google Chrome 瀏覽器
    2. 手動下載 ChromeDriver 並設定到 .env 檔案: CHROMEDRIVER_PATH="C:\\path\\to\\chromedriver.exe"
    3. 或將 ChromeDriver 放入系統 PATH
    4. 執行以下命令清除緩存: rmdir /s "%USERPROFILE%\\.wdm" """
+
         logger.critical(
-            "❌ 無法啟動 Chrome 瀏覽器", troubleshooting_steps=error_msg, exc_info=True
+            f"❌ 無法啟動 Chrome 瀏覽器 (平台: {sys.platform})",
+            troubleshooting_steps=error_msg,
+            platform=sys.platform,
+            exc_info=True,
         )
-        raise Exception("無法啟動 Chrome 瀏覽器")
+        raise Exception(f"無法啟動 Chrome 瀏覽器 (平台: {sys.platform})")
 
     # 創建 WebDriverWait 實例
     wait = WebDriverWait(driver, 10)
