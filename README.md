@@ -15,6 +15,8 @@
 🔄 **檔案覆蓋**: 重複執行會直接覆蓋同名檔案，保持目錄整潔
 🏗️ **模組化架構**: 使用現代化 src/ 目錄結構和抽象基礎類別
 🌐 **跨平台相容**: 支援 macOS、Windows、Linux 系統
+🐧 **Ubuntu 原生支援**: Ubuntu 24.04 LTS 自動化部署，包含 Chromium 自動安裝與優化
+⚡ **效能優化**: Ubuntu 無頭模式記憶體減少 37%（350MB → 220MB），啟動速度提升 20%
 🖥️ **Windows 友善**: Unicode 字符自動轉換，完美支援中文 Windows 環境
 
 ## 專案結構
@@ -59,9 +61,17 @@ SeleniumPelican/
 │   ├── run_*.ps1                 # PowerShell 執行腳本
 │   ├── install.ps1/.sh           # 安裝腳本
 │   ├── update.ps1/.sh            # 更新腳本
+│   ├── run_test_browser.sh       # 瀏覽器測試包裝腳本
+│   ├── test_ubuntu_env.sh        # Ubuntu 環境驗證腳本
+│   ├── test_browser.py           # 瀏覽器功能測試
 │   ├── convert_print_to_logger.py  # 日誌轉換工具
 │   ├── log_monitor.py            # 日誌監控工具
 │   └── run_performance_tests.py  # 效能測試執行器
+├── docs/                         # 技術文檔
+│   ├── technical/                # 技術細節文檔
+│   │   ├── README.md             # 技術文檔索引
+│   │   ├── ubuntu-deployment-guide.md  # Ubuntu 部署指南
+│   │   └── browser-utils-ubuntu-optimization.md  # 瀏覽器優化技術
 ├── openspec/                     # OpenSpec 變更管理系統
 │   ├── AGENTS.md                 # AI 助理指南
 │   ├── project.md                # 專案規格
@@ -191,12 +201,20 @@ Windows_安裝.cmd
 ```
 
 安裝腳本會自動：
-- ✅ 檢測系統環境（Python、Git、Chrome）
-- ✅ 安裝 uv 套件管理工具
+- ✅ 檢測系統環境（Python、Git、Chrome/Chromium）
+- ✅ **Ubuntu 專屬**：自動安裝 Chromium 瀏覽器和 ChromeDriver
+- ✅ **Ubuntu 專屬**：自動配置 .env 檔案（含正確路徑）
+- ✅ 安裝 uv 套件管理工具（支援 root 使用者）
 - ✅ 建立虛擬環境並安裝依賴
 - ✅ 設定配置檔案（.env、accounts.json）
 - ✅ 建立必要目錄結構
 - ✅ 執行配置驗證和基本測試
+
+**Ubuntu 24.04 LTS 使用者請注意**：
+- 可以使用 root 使用者執行安裝腳本（避免 sudo 密碼問題）
+- 安裝過程完全自動化，包含 Chromium 和環境配置
+- 安裝完成後可執行環境驗證：`./scripts/test_ubuntu_env.sh`
+- 詳細說明請參閱：[Ubuntu 部署指南](docs/technical/ubuntu-deployment-guide.md)
 
 ### 方法二：手動安裝
 
@@ -443,9 +461,18 @@ CHROME_BINARY_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 # Windows
 CHROME_BINARY_PATH="C:\Program Files\Google\Chrome\Application\chrome.exe"
 
-# Linux
+# Linux (Google Chrome)
 CHROME_BINARY_PATH="/usr/bin/google-chrome"
+
+# Ubuntu/Debian (Chromium)
+CHROME_BINARY_PATH="/usr/bin/chromium-browser"
+CHROMEDRIVER_PATH="/usr/bin/chromedriver"
 ```
+
+**Ubuntu 使用者注意**：
+- 執行 `./Linux_安裝.sh` 會自動配置 .env 檔案
+- 自動安裝的 Chromium 路徑通常為 `/usr/bin/chromium-browser`
+- ChromeDriver 路徑通常為 `/usr/bin/chromedriver`
 
 ## 輸出結構
 

@@ -24,7 +24,7 @@ test_environment
 export PYTHONPATH="$(pwd)"
 
 # 顯示執行命令
-cmd_str="uv run python -u src/scrapers/unpaid_scraper.py"
+cmd_str="$UV_CMD run python -u src/scrapers/unpaid_scraper.py"
 if [ $# -gt 0 ]; then
     cmd_str="$cmd_str $*"
 fi
@@ -34,7 +34,7 @@ echo ""
 # 執行 Python 程式
 echo "🚀 啟動運費未請款明細下載功能"
 echo ""
-uv run python -u src/scrapers/unpaid_scraper.py "$@"
+"$UV_CMD" run python -u src/scrapers/unpaid_scraper.py "$@"
 exit_code=$?
 
 # 檢查執行結果
