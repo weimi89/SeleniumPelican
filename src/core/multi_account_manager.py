@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from dotenv import load_dotenv
+
 from ..utils.windows_encoding_utils import safe_print
 from .logging_config import ScrapingLogger, get_logger, log_with_safe_print
 from .type_aliases import AccountConfig
@@ -23,7 +25,8 @@ class MultiAccountManager:
     def __init__(self, config_file: str = "accounts.json") -> None:
         self.config_file: str = config_file
         self.logger: ScrapingLogger = get_logger("multi_account_manager")
-        self.config: dict[str, Any] = {}
+        self.config: list[AccountConfig] = []
+        load_dotenv()  # 載入環境變數
         self.load_config()
 
     def load_config(self) -> None:
@@ -31,18 +34,33 @@ class MultiAccountManager:
         if not os.path.exists(self.config_file):
             raise FileNotFoundError(
                 f"⛔ 設定檔 '{self.config_file}' 不存在！\n"
-                "📝 請建立 accounts.json 檔案，包含 accounts 和 settings 設定"
+                "📝 請建立 accounts.json 檔案，格式為帳號陣列"
             )
 
         try:
             with open(self.config_file, "r", encoding="utf-8") as f:
-                self.config = json.load(f)
+                config_data = json.load(f)
 
-            if "accounts" not in self.config or not self.config["accounts"]:
+            # 支援新格式（純陣列）和舊格式（包含 accounts 鍵）
+            if isinstance(config_data, list):
+                # 新格式：直接是陣列
+                self.config = config_data
+            elif isinstance(config_data, dict) and "accounts" in config_data:
+                # 舊格式：包含 accounts 鍵，顯示警告
+                self.logger.warning(
+                    "⚠️ 偵測到舊格式的 accounts.json，請考慮更新為新格式（純帳號陣列）"
+                )
+                self.config = config_data["accounts"]
+            else:
+                raise ValueError("⛔ 設定檔格式錯誤：應該是帳號陣列或包含 'accounts' 鍵的物件")
+
+            if not self.config:
                 raise ValueError("⛔ 設定檔中沒有找到帳號資訊！")
 
             self.logger.info(
-                f"✅ 已載入設定檔: {self.config_file}", config_file=self.config_file
+                f"✅ 已載入設定檔: {self.config_file}",
+                config_file=self.config_file,
+                account_count=len(self.config),
             )
 
         except json.JSONDecodeError as e:
@@ -52,7 +70,7 @@ class MultiAccountManager:
 
     def get_enabled_accounts(self) -> list[AccountConfig]:
         """取得啟用的帳號列表"""
-        return [acc for acc in self.config["accounts"] if acc.get("enabled", True)]
+        return [acc for acc in self.config if acc.get("enabled", True)]
 
     def run_all_accounts(
         self,
@@ -79,7 +97,6 @@ class MultiAccountManager:
         accounts = self.get_enabled_accounts()
 
         results = []
-        settings = self.config.get("settings", {})
 
         if progress_callback:
             progress_callback(f"🚀 開始執行多帳號 WEDI 自動下載 (共 {len(accounts)} 個帳號)")
@@ -108,19 +125,22 @@ class MultiAccountManager:
                 self.logger.info("-" * 50)
 
             try:
-                # 如果有命令列參數覆寫，則使用該設定
+                # 從環境變數讀取 HEADLESS 設定
+                env_headless = os.getenv("HEADLESS", "false").lower() == "true"
+
+                # 如果有命令列參數覆寫，則使用該設定；否則使用環境變數
                 use_headless = (
                     headless_override
                     if headless_override is not None
-                    else settings.get("headless", False)
+                    else env_headless
                 )
 
                 # 準備 scraper 參數，根據不同類型傳遞適當的日期/月份參數
+                # 注意：不再傳遞 download_base_dir，改由各爬蟲從環境變數讀取
                 scraper_kwargs = {
                     "username": username,
                     "password": password,
                     "headless": use_headless,
-                    "download_base_dir": settings.get("download_base_dir", "downloads"),
                 }
 
                 # 檢查 scraper 類別名稱來決定傳遞哪種日期參數

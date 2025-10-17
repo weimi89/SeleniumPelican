@@ -69,6 +69,9 @@ class PaymentScraper(ImprovedBaseScraper):
         # WEDI 系統固定 URL
         url = "http://wedinlb03.e-can.com.tw/wEDI2012/wedilogin.asp"
 
+        # 設定此爬蟲要使用的環境變數 key
+        self.download_dir_env_key = "PAYMENT_DOWNLOAD_DIR"
+
         # 調用新的父類構造函數
         super().__init__(
             url=url, username=username, password=password, headless=headless
@@ -77,9 +80,10 @@ class PaymentScraper(ImprovedBaseScraper):
         # 代收貨款查詢特有的屬性
         self.start_date = start_date
         self.end_date = end_date
-        self.download_base_dir = download_base_dir
+        # download_base_dir 保留以保持向後相容，但標註為已棄用
+        self.download_base_dir = download_base_dir  # Deprecated: 改用環境變數 PAYMENT_DOWNLOAD_DIR
 
-        # 注意：下載目錄已由父類 ImprovedBaseScraper 設置
+        # 注意：下載目錄已由父類 ImprovedBaseScraper 從環境變數設置
         # 不需要再次覆蓋，保持與父類一致
 
     def set_date_range(self) -> bool:
@@ -924,7 +928,7 @@ class PaymentScraper(ImprovedBaseScraper):
                 # 重命名新下載的檔案
                 for new_file in new_files:
                     if new_file.suffix.lower() in [".xlsx", ".xls"]:
-                        new_name = f"{self.username}_{payment_no}{new_file.suffix}"
+                        new_name = f"代收貨款匯款明細_{self.username}_{payment_no}{new_file.suffix}"
                         new_path = self.download_dir / new_name
                         new_file.rename(new_path)
                         downloaded_files.append(str(new_path))

@@ -18,8 +18,34 @@ from jsonschema import ValidationError, validate
 from ..utils.windows_encoding_utils import safe_print
 from .logging_config import get_logger
 
-# accounts.json JSON Schema 定義
+# accounts.json JSON Schema 定義（新格式：純陣列）
 ACCOUNTS_JSON_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "username": {
+                "type": "string",
+                "minLength": 1,
+                "description": "使用者帳號名稱",
+            },
+            "password": {
+                "type": "string",
+                "minLength": 1,
+                "description": "使用者密碼",
+            },
+            "enabled": {"type": "boolean", "description": "帳號是否啟用"},
+        },
+        "required": ["username", "password", "enabled"],
+        "additionalProperties": False,
+    },
+    "minItems": 1,
+    "description": "帳號清單",
+}
+
+# 舊格式 JSON Schema（用於向後相容檢查）
+OLD_ACCOUNTS_JSON_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "type": "object",
     "properties": {
@@ -28,40 +54,17 @@ ACCOUNTS_JSON_SCHEMA = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "username": {
-                        "type": "string",
-                        "minLength": 1,
-                        "description": "使用者帳號名稱",
-                    },
-                    "password": {
-                        "type": "string",
-                        "minLength": 1,
-                        "description": "使用者密碼",
-                    },
-                    "enabled": {"type": "boolean", "description": "帳號是否啟用"},
+                    "username": {"type": "string", "minLength": 1},
+                    "password": {"type": "string", "minLength": 1},
+                    "enabled": {"type": "boolean"},
                 },
                 "required": ["username", "password", "enabled"],
-                "additionalProperties": False,
             },
             "minItems": 1,
-            "description": "帳號清單",
         },
-        "settings": {
-            "type": "object",
-            "properties": {
-                "headless": {"type": "boolean", "description": "是否使用無頭瀏覽器模式"},
-                "download_base_dir": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "下載基礎目錄路徑",
-                },
-            },
-            "required": ["headless", "download_base_dir"],
-            "additionalProperties": False,
-        },
+        "settings": {"type": "object"},
     },
-    "required": ["accounts", "settings"],
-    "additionalProperties": False,
+    "required": ["accounts"],
 }
 
 
@@ -101,7 +104,7 @@ class ConfigValidator:
         self, accounts_path: Optional[str] = None
     ) -> Tuple[bool, List[str]]:
         """
-        驗證 accounts.json 檔案
+        驗證 accounts.json 檔案（支援新舊格式）
 
         Args:
             accounts_path: accounts.json 檔案路徑，若未提供則使用預設路徑
@@ -122,9 +125,22 @@ class ConfigValidator:
             with open(accounts_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
+            # 判斷是新格式還是舊格式
+            is_old_format = isinstance(data, dict) and "accounts" in data
+
             # JSON Schema 驗證
             try:
-                validate(instance=data, schema=ACCOUNTS_JSON_SCHEMA)
+                if is_old_format:
+                    # 舊格式：顯示警告但允許通過
+                    errors.append(
+                        "⚠️ 偵測到舊格式的 accounts.json（包含 'accounts' 和 'settings' 鍵），"
+                        "建議更新為新格式（純帳號陣列）。"
+                        "請參考 accounts.json.example 或遷移指南。"
+                    )
+                    validate(instance=data, schema=OLD_ACCOUNTS_JSON_SCHEMA)
+                else:
+                    # 新格式
+                    validate(instance=data, schema=ACCOUNTS_JSON_SCHEMA)
             except ValidationError as e:
                 errors.append(f"JSON Schema 驗證失敗: {e.message}")
                 if e.path:
@@ -132,7 +148,7 @@ class ConfigValidator:
                 return False, errors
 
             # 額外的業務邏輯驗證
-            business_errors = self._validate_accounts_business_logic(data)
+            business_errors = self._validate_accounts_business_logic(data, is_old_format)
             errors.extend(business_errors)
 
         except json.JSONDecodeError as e:
@@ -144,27 +160,31 @@ class ConfigValidator:
 
         return len(errors) == 0, errors
 
-    def _validate_accounts_business_logic(self, data: Dict) -> List[str]:
+    def _validate_accounts_business_logic(self, data, is_old_format: bool = False) -> List[str]:
         """
-        驗證 accounts.json 的業務邏輯
+        驗證 accounts.json 的業務邏輯（支援新舊格式）
 
         Args:
-            data: 已解析的 JSON 資料
+            data: 已解析的 JSON 資料（陣列或包含 accounts 鍵的字典）
+            is_old_format: 是否為舊格式
 
         Returns:
             錯誤訊息列表
         """
         errors = []
 
+        # 根據格式獲取帳號列表
+        accounts = data["accounts"] if is_old_format else data
+
         # 檢查是否至少有一個啟用的帳號
         enabled_accounts = [
-            acc for acc in data["accounts"] if acc.get("enabled", False)
+            acc for acc in accounts if acc.get("enabled", False)
         ]
         if not enabled_accounts:
             errors.append("至少需要一個啟用的帳號 (enabled: true)")
 
         # 檢查帳號名稱是否重複
-        usernames = [acc["username"] for acc in data["accounts"]]
+        usernames = [acc["username"] for acc in accounts]
         if len(usernames) != len(set(usernames)):
             duplicates = []
             for username in set(usernames):
@@ -173,7 +193,7 @@ class ConfigValidator:
             errors.append(f"發現重複的帳號名稱: {', '.join(duplicates)}")
 
         # 檢查密碼強度（基本檢查）
-        for i, account in enumerate(data["accounts"]):
+        for i, account in enumerate(accounts):
             password = account["password"]
             if len(password) < 6:
                 errors.append(f"帳號 #{i+1} ({account['username']}) 的密碼過短，建議至少 6 個字元")
@@ -182,18 +202,19 @@ class ConfigValidator:
             if password in ["您的密碼1", "您的密碼2", "您的密碼3", "your_password"]:
                 errors.append(f"帳號 #{i+1} ({account['username']}) 仍使用範例密碼，請更換為實際密碼")
 
-        # 檢查下載目錄設定
-        download_dir = data["settings"]["download_base_dir"]
-        if download_dir == "downloads":
-            # 這是預設值，檢查是否為相對路徑
-            abs_download_dir = self.project_root / download_dir
-            if not abs_download_dir.exists():
-                errors.append(f"下載目錄不存在: {abs_download_dir}，將自動建立")
-        elif not os.path.isabs(download_dir):
-            # 相對路徑，轉換為絕對路徑檢查
-            abs_download_dir = self.project_root / download_dir
-            if not abs_download_dir.parent.exists():
-                errors.append(f"下載目錄的父目錄不存在: {abs_download_dir.parent}")
+        # 舊格式才檢查下載目錄設定（新格式改用環境變數）
+        if is_old_format and "settings" in data:
+            download_dir = data["settings"].get("download_base_dir", "downloads")
+            if download_dir == "downloads":
+                # 這是預設值，檢查是否為相對路徑
+                abs_download_dir = self.project_root / download_dir
+                if not abs_download_dir.exists():
+                    errors.append(f"下載目錄不存在: {abs_download_dir}，將自動建立")
+            elif not os.path.isabs(download_dir):
+                # 相對路徑，轉換為絕對路徑檢查
+                abs_download_dir = self.project_root / download_dir
+                if not abs_download_dir.parent.exists():
+                    errors.append(f"下載目錄的父目錄不存在: {abs_download_dir.parent}")
 
         return errors
 
@@ -239,7 +260,16 @@ class ConfigValidator:
 
             # 驗證必要的環境變數
             required_vars = ["CHROME_BINARY_PATH"]
-            optional_vars = ["CHROMEDRIVER_PATH"]
+            optional_vars = [
+                "CHROMEDRIVER_PATH",
+                "HEADLESS",
+                "PAYMENT_DOWNLOAD_DIR",
+                "UNPAID_DOWNLOAD_DIR",
+                "FREIGHT_DOWNLOAD_DIR",
+                "PYTHONUNBUFFERED",
+                "LOG_LEVEL",
+                "WAIT_TIMEOUT",
+            ]
 
             for var in required_vars:
                 if var not in env_vars:
@@ -255,9 +285,53 @@ class ConfigValidator:
             # 檢查可選環境變數
             for var in optional_vars:
                 if var in env_vars and env_vars[var]:
-                    path = env_vars[var]
-                    if not os.path.exists(path):
-                        errors.append(f"環境變數 {var} 指向的路徑不存在: {path}")
+                    # HEADLESS 是布林值，不需要檢查路徑
+                    if var == "HEADLESS":
+                        value = env_vars[var].lower()
+                        if value not in ["true", "false"]:
+                            errors.append(f"環境變數 HEADLESS 必須為 'true' 或 'false'，目前值: {env_vars[var]}")
+                    # 下載目錄相關環境變數檢查目錄是否存在（或可以建立）
+                    elif var.endswith("_DOWNLOAD_DIR"):
+                        download_path = env_vars[var]
+                        # 如果是相對路徑，轉換為絕對路徑
+                        if not os.path.isabs(download_path):
+                            abs_path = self.project_root / download_path
+                        else:
+                            abs_path = Path(download_path)
+
+                        # 檢查父目錄是否存在
+                        if not abs_path.parent.exists():
+                            errors.append(
+                                f"環境變數 {var} 指向的下載目錄父目錄不存在: {abs_path.parent}，"
+                                "請確認路徑正確"
+                            )
+                    # ChromeDriver 路徑檢查
+                    elif var == "CHROMEDRIVER_PATH":
+                        path = env_vars[var]
+                        if not os.path.exists(path):
+                            errors.append(f"環境變數 {var} 指向的路徑不存在: {path}")
+                    # PYTHONUNBUFFERED 檢查
+                    elif var == "PYTHONUNBUFFERED":
+                        value = env_vars[var]
+                        if value not in ["0", "1"]:
+                            errors.append(f"環境變數 PYTHONUNBUFFERED 必須為 '0' 或 '1'，目前值: {value}")
+                    # LOG_LEVEL 檢查
+                    elif var == "LOG_LEVEL":
+                        value = env_vars[var].upper()
+                        valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+                        if value not in valid_levels:
+                            errors.append(
+                                f"環境變數 LOG_LEVEL 必須為 {', '.join(valid_levels)} 之一，"
+                                f"目前值: {env_vars[var]}"
+                            )
+                    # WAIT_TIMEOUT 檢查
+                    elif var == "WAIT_TIMEOUT":
+                        try:
+                            timeout = int(env_vars[var])
+                            if timeout <= 0:
+                                errors.append(f"環境變數 WAIT_TIMEOUT 必須為正整數，目前值: {env_vars[var]}")
+                        except ValueError:
+                            errors.append(f"環境變數 WAIT_TIMEOUT 必須為整數，目前值: {env_vars[var]}")
 
         except Exception as e:
             errors.append(f"讀取 .env 檔案時發生錯誤: {e}")
@@ -325,7 +399,17 @@ class ConfigValidator:
 
                     shutil.copy2(self.env_example_file, self.env_file)
                     messages.append(f"✅ 已從範例建立 {self.env_file}")
-                    messages.append(f"⚠️ 請編輯 {self.env_file} 並設定正確的 Chrome 路徑")
+                    messages.append(
+                        f"⚠️ 請編輯 {self.env_file} 並設定以下必要配置：\n"
+                        "   1. CHROME_BINARY_PATH - Chrome 瀏覽器路徑（必要）\n"
+                        "   2. CHROMEDRIVER_PATH - ChromeDriver 路徑（選用）\n"
+                        "   3. HEADLESS - 無頭模式開關 true/false（選用，預設 false）\n"
+                        "   4. 下載目錄設定（選用）：\n"
+                        "      - PAYMENT_DOWNLOAD_DIR（代收貨款）\n"
+                        "      - FREIGHT_DOWNLOAD_DIR（運費結帳）\n"
+                        "      - UNPAID_DOWNLOAD_DIR（運費未請款）\n"
+                        "   📝 提示：檔案中已包含各平台的快速設定範例"
+                    )
                 except Exception as e:
                     messages.append(f"❌ 無法建立 {self.env_file}: {e}")
                     success = False

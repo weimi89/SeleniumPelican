@@ -70,11 +70,32 @@ class ImprovedBaseScraper(ABC):
 
     def _setup_directories(self) -> None:
         """設定工作目錄"""
+        import os
         from pathlib import Path
+        from dotenv import load_dotenv
 
+        load_dotenv()
         base_dir = Path.cwd()
-        # 所有帳號使用同一個下載目錄（與原始 BaseScraper 保持一致）
-        self.download_dir = base_dir / "downloads"
+
+        # 從環境變數讀取下載目錄
+        # 子類別可以透過設定 download_dir_env_key 屬性來指定要使用的環境變數
+        download_dir_env_key = getattr(self, 'download_dir_env_key', None)
+        if download_dir_env_key:
+            custom_download_dir = os.getenv(download_dir_env_key)
+            if custom_download_dir:
+                self.download_dir = base_dir / custom_download_dir
+                self.logger.info(
+                    f"使用自訂下載目錄: {custom_download_dir}",
+                    env_key=download_dir_env_key
+                )
+            else:
+                self.download_dir = base_dir / "downloads"
+                self.logger.info(
+                    f"環境變數 {download_dir_env_key} 未設定，使用預設下載目錄: downloads"
+                )
+        else:
+            self.download_dir = base_dir / "downloads"
+
         self.reports_dir = base_dir / "reports"
         self.logs_dir = base_dir / "logs"
         self.temp_dir = base_dir / "temp"

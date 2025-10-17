@@ -11,7 +11,10 @@
 📊 **運費未請款明細**: 直接抓取表格並轉換為 Excel 檔案
 👥 **多帳號支援**: 批次處理多個帳號，自動產生總結報告
 📅 **彈性日期**: 支援不同的日期格式（YYYYMMDD 或 YYYYMM）
-📝 **智能檔案命名**: 檔案自動命名為 `帳號_編號.xlsx` 格式
+📝 **智能檔案命名**:
+  - 代收貨款：`代收貨款匯款明細_{帳號}_{編號}.xlsx`
+  - 運費發票：`運費發票明細_{帳號}_{日期}_{發票資訊}.xlsx`
+  - 運費未請款：`運費未請款明細_{帳號}_{日期}.xlsx`
 🔄 **檔案覆蓋**: 重複執行會直接覆蓋同名檔案，保持目錄整潔
 🏗️ **模組化架構**: 使用現代化 src/ 目錄結構和抽象基礎類別
 🌐 **跨平台相容**: 支援 macOS、Windows、Linux 系統
@@ -379,7 +382,7 @@ uv run python -u src\scrapers\unpaid_scraper.py
 3. 🧭 **智能導航** - 導航到代收貨款查詢頁面，處理複雜的 iframe 結構
 4. 📊 **精準篩選** - 只搜尋「代收貨款匯款明細」，排除其他項目
 5. 📥 **自動下載** - 下載 Excel 檔案到 `downloads/` 目錄
-6. 📝 **智能重命名** - 檔案重命名為 `帳號_編號.xlsx` 格式
+6. 📝 **智能重命名** - 檔案重命名為 `代收貨款匯款明細_{帳號}_{編號}.xlsx` 格式（例：`代收貨款匯款明細_5081794201_303251010500002.xlsx`）
 7. 👥 **多帳號處理** - 依序處理所有啟用的帳號
 8. 📋 **生成報告** - 產生詳細的執行報告
 
@@ -389,7 +392,7 @@ uv run python -u src\scrapers\unpaid_scraper.py
 3. 🧭 **智能導航** - 導航到運費(月結)結帳資料查詢頁面
 4. 📊 **搜尋運費記錄** - 搜尋 (2-7) 運費相關的結帳資料
 5. 📥 **自動下載** - 下載 Excel 檔案
-6. 📝 **智能重命名** - 檔案重命名為 `帳號_freight_編號.xlsx` 格式
+6. 📝 **智能重命名** - 檔案重命名為 `運費發票明細_{帳號}_{日期}_{發票資訊}.xlsx` 格式（例：`運費發票明細_0000000001_202411_INV001.xlsx`）
 7. 👥 **批次處理** - 處理所有啟用的帳號
 8. 📋 **總結報告** - 產生執行統計和結果報告
 
@@ -399,7 +402,7 @@ uv run python -u src\scrapers\unpaid_scraper.py
 3. 🧭 **智能導航** - 導航到運費未請款明細頁面
 4. 📊 **直接抓取表格** - 使用 BeautifulSoup 解析 HTML 表格數據
 5. 📥 **生成 Excel** - 直接從表格數據創建 Excel 檔案
-6. 📝 **智能重命名** - 檔案重命名為 `帳號_FREIGHT_日期.xlsx` 格式
+6. 📝 **智能重命名** - 檔案重命名為 `運費未請款明細_{帳號}_{日期}.xlsx` 格式（例：`運費未請款明細_0000000001_20241215.xlsx`）
 7. 👥 **批次處理** - 處理所有啟用的帳號
 8. 📋 **總結報告** - 產生執行統計和結果報告
 
@@ -435,26 +438,24 @@ uv run python -u src\scrapers\unpaid_scraper.py
 > **安全提醒**：請參考 `accounts.json.example` 建立此檔案，切勿將真實密碼提交到版本控制系統。
 
 ```json
-{
-  "accounts": [
-    {"username": "0000000001", "password": "your_password", "enabled": true},
-    {"username": "0000000002", "password": "your_password", "enabled": false}
-  ],
-  "settings": {
-    "headless": false,
-    "download_base_dir": "downloads"
-  }
-}
+[
+  {"username": "0000000001", "password": "your_password", "enabled": true},
+  {"username": "0000000002", "password": "your_password", "enabled": false}
+]
 ```
 
 **重要設定說明**：
 - `enabled: true/false` - 控制要處理哪些帳號
-- `headless: true/false` - 是否使用背景模式（無法手動輸入驗證碼）
 - 已加入 `.gitignore`，不會意外提交敏感資訊
+- **注意**：環境相關設定（如 headless 模式、下載路徑）已移至 `.env` 檔案
+
+> **版本更新提示**：如果你從舊版本升級，請參考文末的「從舊版本升級」章節更新配置檔案格式。
 
 ### .env
-設定 Chrome 瀏覽器路徑：
+設定 Chrome 瀏覽器路徑和執行環境：
+
 ```bash
+# Chrome 瀏覽器路徑
 # macOS
 CHROME_BINARY_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
@@ -467,7 +468,20 @@ CHROME_BINARY_PATH="/usr/bin/google-chrome"
 # Ubuntu/Debian (Chromium)
 CHROME_BINARY_PATH="/usr/bin/chromium-browser"
 CHROMEDRIVER_PATH="/usr/bin/chromedriver"
+
+# 執行環境設定
+HEADLESS=false                                    # 是否使用背景模式（無法手動輸入驗證碼）
+
+# 下載路徑設定（可選，未設定時使用預設的 downloads 目錄）
+PAYMENT_DOWNLOAD_DIR="downloads/代收貨款"         # 代收貨款匯款明細下載路徑
+UNPAID_DOWNLOAD_DIR="downloads/運費未請款"        # 運費未請款明細下載路徑
+FREIGHT_DOWNLOAD_DIR="downloads/運費發票"         # 運費發票明細下載路徑
 ```
+
+**重要設定說明**：
+- `HEADLESS` - 控制是否使用背景模式執行（true/false）
+- `*_DOWNLOAD_DIR` - 可為不同類型檔案設定專屬下載路徑，讓檔案自動分類
+- 所有下載路徑都是**可選的**，未設定時會使用預設的 `downloads` 目錄
 
 **Ubuntu 使用者注意**：
 - 執行 `./Linux_安裝.sh` 會自動配置 .env 檔案
@@ -476,11 +490,12 @@ CHROMEDRIVER_PATH="/usr/bin/chromedriver"
 
 ## 輸出結構
 
+### 預設輸出結構
 ```
-downloads/              # 下載的 Excel 檔案
-├── 0000000001_12345678.xlsx          # 代收貨款明細
-├── 0000000001_freight_20241101.xlsx  # 運費記錄
-├── 0000000001_FREIGHT_20241215.xlsx  # 運費未請款明細
+downloads/              # 預設下載目錄（所有檔案）
+├── 代收貨款匯款明細_5081794201_303251010500002.xlsx   # 代收貨款明細
+├── 運費發票明細_0000000001_202411_INV001.xlsx         # 運費發票明細
+├── 運費未請款明細_0000000001_20241215.xlsx            # 運費未請款明細
 └── ...
 
 reports/               # 執行報告
@@ -490,6 +505,31 @@ reports/               # 執行報告
 logs/                 # 執行日誌
 temp/                 # 暫存檔案
 ```
+
+### 自訂分類輸出（推薦）
+當你在 `.env` 設定不同的下載路徑後，檔案會自動分類：
+
+```
+downloads/
+├── 代收貨款/          # 代收貨款匯款明細（PAYMENT_DOWNLOAD_DIR）
+│   ├── 代收貨款匯款明細_5081794201_303251010500002.xlsx
+│   └── 代收貨款匯款明細_5081794202_303251010500003.xlsx
+├── 運費未請款/        # 運費未請款明細（UNPAID_DOWNLOAD_DIR）
+│   ├── 運費未請款明細_0000000001_20241215.xlsx
+│   └── 運費未請款明細_0000000002_20241215.xlsx
+└── 運費發票/          # 運費發票明細（FREIGHT_DOWNLOAD_DIR）
+    ├── 運費發票明細_0000000001_202411_INV001.xlsx
+    └── 運費發票明細_0000000002_202412_INV002.xlsx
+
+reports/               # 執行報告
+logs/                 # 執行日誌
+temp/                 # 暫存檔案
+```
+
+**自訂路徑的優點**：
+- 📁 自動分類，檔案整理更清晰
+- 🔍 快速找到特定類型的資料
+- 🗂️ 可以設定不同的儲存位置（例如不同硬碟）
 
 ## 現代化特色
 
@@ -671,3 +711,101 @@ A: 程式採用容錯設計，個別帳號失敗不會影響其他帳號處理
 - 如發現密碼洩露，請立即更改所有相關帳號密碼
 
 📝 **法律聲明**: 此工具僅供學習和合法用途使用，使用者需自行承擔使用責任。
+
+## 從舊版本升級 🔄
+
+如果你從舊版本（v1.x）升級到新版本，配置檔案的格式已經更新。請按照以下步驟進行遷移：
+
+### 步驟 1: 備份現有配置
+```bash
+# 備份你的 accounts.json
+cp accounts.json accounts.json.backup
+```
+
+### 步驟 2: 更新 accounts.json 格式
+
+**舊格式**（已棄用）：
+```json
+{
+  "accounts": [
+    {"username": "0000000001", "password": "your_password", "enabled": true}
+  ],
+  "settings": {
+    "headless": false,
+    "download_base_dir": "downloads"
+  }
+}
+```
+
+**新格式**：
+```json
+[
+  {"username": "0000000001", "password": "your_password", "enabled": true}
+]
+```
+
+**變更重點**：
+- 移除外層的 `accounts` 和 `settings` 欄位
+- 直接使用帳號陣列作為檔案內容
+- 環境設定移至 `.env` 檔案
+
+### 步驟 3: 更新 .env 檔案
+
+在你的 `.env` 檔案中**新增**以下設定（保留原有的 `CHROME_BINARY_PATH`）：
+
+```bash
+# 執行環境設定
+HEADLESS=false                                    # 對應舊的 settings.headless
+
+# 下載路徑設定（可選）
+PAYMENT_DOWNLOAD_DIR="downloads/代收貨款"         # 代收貨款匯款明細
+UNPAID_DOWNLOAD_DIR="downloads/運費未請款"        # 運費未請款明細
+FREIGHT_DOWNLOAD_DIR="downloads/運費發票"         # 運費發票明細
+```
+
+**注意**：
+- `HEADLESS` 對應舊的 `settings.headless` 設定
+- 下載路徑可以自訂，也可以不設定（使用預設的 `downloads` 目錄）
+- 如果舊的 `download_base_dir` 是 `"downloads"`，你可以不設定新的環境變數
+
+### 步驟 4: 驗證配置
+
+執行配置驗證工具確認設定正確：
+
+```bash
+# Windows
+Windows_配置驗證.cmd
+
+# Linux/macOS
+./Linux_配置驗證.sh
+```
+
+### 步驟 5: 測試執行
+
+執行一次簡單的查詢測試：
+
+```bash
+# Windows
+Windows_運費未請款明細.cmd
+
+# Linux/macOS
+./Linux_運費未請款明細.sh
+```
+
+### 常見問題
+
+**Q: 我不想更新配置，舊格式還能用嗎？**
+A: 可以。程式會自動偵測舊格式並顯示警告訊息，但仍能正常執行。建議盡快更新以享受新功能。
+
+**Q: 升級後檔案會存到哪裡？**
+A: 如果未設定 `*_DOWNLOAD_DIR` 環境變數，會使用預設的 `downloads` 目錄，和舊版行為一致。
+
+**Q: 我想讓檔案自動分類怎麼辦？**
+A: 在 `.env` 設定不同的 `*_DOWNLOAD_DIR`，例如 `PAYMENT_DOWNLOAD_DIR="downloads/代收貨款"`。
+
+**Q: 遷移後發現問題怎麼辦？**
+A: 還原備份檔案：`cp accounts.json.backup accounts.json`，並從 `.env` 移除新增的環境變數。
+
+### 詳細遷移說明
+
+如需更詳細的技術說明和遷移步驟，請參閱 [`MIGRATION.md`](MIGRATION.md) 文件。
