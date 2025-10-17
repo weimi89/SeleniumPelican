@@ -194,7 +194,7 @@ if [ "$PASSED_CHECKS" -eq "$TOTAL_CHECKS" ]; then
     echo -e "${GREEN}✅ 環境配置完全正確！可以開始使用${NC}"
     echo ""
     print_info "下一步: 執行瀏覽器功能測試"
-    echo "  python3 scripts/test_browser.py"
+    echo "  python3 src/utils/browser_tester.py"
     exit 0
 elif [ "$PASSED_CHECKS" -ge $((TOTAL_CHECKS * 2 / 3)) ]; then
     echo -e "${YELLOW}⚠️  大部分檢查通過，但仍有些問題需要修復${NC}"

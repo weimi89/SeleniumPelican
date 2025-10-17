@@ -43,4 +43,4 @@ echo -e "${GREEN}✅ 找到 UV: $UV_CMD${NC}"
 # 執行測試
 echo -e "${BLUE}ℹ️  執行瀏覽器測試...${NC}"
 echo ""
-"$UV_CMD" run python scripts/test_browser.py
+"$UV_CMD" run python src/utils/browser_tester.py

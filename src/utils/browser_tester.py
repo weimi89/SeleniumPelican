@@ -6,7 +6,6 @@
 功能: 驗證瀏覽器自動化能力和效能指標
 """
 
-import os
 import sys
 import time
 import psutil

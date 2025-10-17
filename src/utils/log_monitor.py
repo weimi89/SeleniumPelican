@@ -8,8 +8,6 @@ SeleniumPelican 日誌監控命令列工具
 """
 
 import argparse
-import asyncio
-import json
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
