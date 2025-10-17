@@ -167,9 +167,6 @@ mypy-report/
 
 # Cython debug symbols
 cython_debug/
-# BMAD (local only)
-.bmad-core/
-.bmad-*/
 
 tests/*
 logs/*
