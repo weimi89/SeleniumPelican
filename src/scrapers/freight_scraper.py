@@ -42,8 +42,13 @@ class FreightScraper(ImprovedBaseScraper):
         start_month=None,
         end_month=None,
     ):
-        # 構建 URL 並調用父類構造函數
+        # 構建 URL
         url = "http://wedinlb03.e-can.com.tw/wEDI2012/wedilogin.asp"
+
+        # 設定此爬蟲要使用的環境變數 key
+        self.download_dir_env_key = "FREIGHT_DOWNLOAD_DIR"
+
+        # 調用父類構造函數
         super().__init__(
             url=url, username=username, password=password, headless=headless
         )
@@ -51,6 +56,8 @@ class FreightScraper(ImprovedBaseScraper):
         # 子類特有的屬性
         self.start_month = start_month
         self.end_month = end_month
+        # download_base_dir 保留以保持向後相容，但標註為已棄用
+        self.download_base_dir = download_base_dir  # Deprecated: 改用環境變數 FREIGHT_DOWNLOAD_DIR
 
         # 轉換月份為日期格式供日期操作使用
         self.start_date = None

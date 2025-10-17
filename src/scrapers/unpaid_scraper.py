@@ -37,11 +37,19 @@ class UnpaidScraper(ImprovedBaseScraper):
     def __init__(
         self, username, password, headless=False, download_base_dir="downloads"
     ):
-        # 構建 URL 並調用父類構造函數
+        # 構建 URL
         url = "http://wedinlb03.e-can.com.tw/wEDI2012/wedilogin.asp"
+
+        # 設定此爬蟲要使用的環境變數 key
+        self.download_dir_env_key = "UNPAID_DOWNLOAD_DIR"
+
+        # 調用父類構造函數
         super().__init__(
             url=url, username=username, password=password, headless=headless
         )
+
+        # download_base_dir 保留以保持向後相容，但標註為已棄用
+        self.download_base_dir = download_base_dir  # Deprecated: 改用環境變數 UNPAID_DOWNLOAD_DIR
 
         # 設定結束時間為當日
         self.end_date = datetime.now().strftime("%Y%m%d")
