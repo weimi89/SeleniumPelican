@@ -183,19 +183,16 @@ nano accounts.json
 vim accounts.json
 ```
 
-**重要配置**：在 Ubuntu 無頭環境，務必設定 `"headless": true`：
+**重要配置**：填入實際帳號資訊：
 
 ```json
-{
-  "accounts": [
-    {
-      "username": "your_username",
-      "password": "your_password",
-      "enabled": true,
-      "headless": true  ← 必須設為 true
-    }
-  ]
-}
+[
+  {
+    "username": "your_username",
+    "password": "your_password",
+    "enabled": true
+  }
+]
 ```
 
 ### 步驟 6: 建立必要目錄
@@ -264,32 +261,41 @@ python3 scripts/test_browser.py
 
 ### .env 檔案
 
-| 變數 | 說明 | Ubuntu 預設值 |
-|------|------|---------------|
-| `CHROME_BINARY_PATH` | Chrome/Chromium 執行檔路徑 | `/usr/bin/chromium-browser` |
-| `CHROMEDRIVER_PATH` | ChromeDriver 執行檔路徑 | `/usr/bin/chromedriver` |
+| 變數 | 說明 | Ubuntu 預設值 | 必要性 |
+|------|------|---------------|--------|
+| `CHROME_BINARY_PATH` | Chrome/Chromium 執行檔路徑 | `/usr/bin/chromium-browser` | ✅ 必要 |
+| `CHROMEDRIVER_PATH` | ChromeDriver 執行檔路徑 | `/usr/bin/chromedriver` | 選用 |
+| `HEADLESS` | 無頭模式開關 | `true` | ⚠️ Ubuntu 無頭環境必須為 `true` |
+
+**Ubuntu 環境 .env 範例**：
+
+```bash
+CHROME_BINARY_PATH=/usr/bin/chromium-browser
+CHROMEDRIVER_PATH=/usr/bin/chromedriver
+HEADLESS=true  # Ubuntu 無頭環境必須啟用
+```
 
 ### accounts.json 檔案
 
-Ubuntu 無頭環境必須設定的欄位：
+帳號設定格式（新格式：純陣列）：
 
 ```json
-{
-  "accounts": [
-    {
-      "username": "帳號",
-      "password": "密碼",
-      "enabled": true,        // 是否啟用此帳號
-      "headless": true        // ⚠️ Ubuntu 環境必須為 true
-    }
-  ]
-}
+[
+  {
+    "username": "帳號",
+    "password": "密碼",
+    "enabled": true        // 是否啟用此帳號
+  }
+]
 ```
 
 **注意事項**：
-- `headless: false` 在無 GUI 環境會導致錯誤
+- Ubuntu 無頭環境必須在 `.env` 設定 `HEADLESS=true`
 - 密碼等敏感資訊不要提交到 Git
-- 檔案權限應設為 600（僅擁有者可讀寫）
+- 配置檔案權限應設為 600（僅擁有者可讀寫）：
+  ```bash
+  chmod 600 .env accounts.json
+  ```
 
 ---
 

@@ -149,16 +149,27 @@ print_check "檢查 accounts.json 檔案"
 ACCOUNTS_FILE="$PROJECT_ROOT/accounts.json"
 
 if [ -f "$ACCOUNTS_FILE" ]; then
-    # 檢查 headless 設定
-    if grep -q '"headless".*:.*true' "$ACCOUNTS_FILE"; then
-        print_pass "accounts.json 存在且 headless 模式已啟用"
-    else
-        print_warning "accounts.json 存在但 headless 可能未設為 true"
-        print_info "Ubuntu 無頭環境建議設定 \"headless\": true"
-    fi
+    print_pass "accounts.json 存在"
 else
     print_fail "accounts.json 不存在"
     print_info "複製範例: cp accounts.json.example accounts.json"
+fi
+
+# 6.1 檢查 .env 中的 HEADLESS 設定
+print_check "檢查 HEADLESS 模式設定"
+if [ -f "$ENV_FILE" ]; then
+    HEADLESS_VALUE=$(grep "^HEADLESS=" "$ENV_FILE" | cut -d'=' -f2 | tr -d '"' | tr -d "'" | tr '[:upper:]' '[:lower:]')
+    if [ "$HEADLESS_VALUE" = "true" ]; then
+        print_pass "HEADLESS 模式已啟用（適合無頭環境）"
+    elif [ "$HEADLESS_VALUE" = "false" ]; then
+        print_warning "HEADLESS 模式未啟用"
+        print_info "Ubuntu 無頭環境建議在 .env 設定: HEADLESS=true"
+    else
+        print_warning ".env 檔案缺少 HEADLESS 設定"
+        print_info "Ubuntu 無頭環境建議在 .env 新增: HEADLESS=true"
+    fi
+else
+    print_warning "無法檢查 HEADLESS 設定（.env 不存在）"
 fi
 
 # 7. 檢查目錄權限
