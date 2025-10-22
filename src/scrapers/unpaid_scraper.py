@@ -336,6 +336,19 @@ class UnpaidScraper(ImprovedBaseScraper):
             filename = f"運費未請款明細_{self.username}_{self.end_date}.xlsx"
             file_path = self.download_dir / filename
 
+            # 確保下載目錄存在（防止目錄被刪除或權限問題）
+            try:
+                self.download_dir.mkdir(parents=True, exist_ok=True)
+            except PermissionError as perm_error:
+                self.logger.error(
+                    f"❌ 無法創建下載目錄: {self.download_dir}",
+                    error=str(perm_error),
+                    download_dir=str(self.download_dir),
+                )
+                raise PermissionError(
+                    f"無法創建下載目錄 {self.download_dir}，請檢查目錄權限"
+                ) from perm_error
+
             # 保存檔案
             wb.save(file_path)
             wb.close()
