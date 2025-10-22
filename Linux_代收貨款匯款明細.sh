@@ -68,5 +68,11 @@ exit_code=$?
 # 檢查執行結果
 test_execution_result $exit_code
 
-echo ""
-read -p "按 Enter 鍵繼續..."
+# 非互動模式直接退出
+if [ -t 0 ]; then
+    # 只在終端機互動模式下才等待
+    echo ""
+    read -p "按 Enter 鍵繼續..."
+fi
+
+exit $exit_code
