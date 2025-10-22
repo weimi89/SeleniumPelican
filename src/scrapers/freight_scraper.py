@@ -794,18 +794,8 @@ class FreightScraper(ImprovedBaseScraper):
                                 # 保存檔案
                                 file_path = self.download_dir / filename
 
-                                # 確保下載目錄存在（防止目錄被刪除或權限問題）
-                                try:
-                                    self.download_dir.mkdir(parents=True, exist_ok=True)
-                                except PermissionError as perm_error:
-                                    self.logger.error(
-                                        f"❌ 無法創建下載目錄: {self.download_dir}",
-                                        error=str(perm_error),
-                                        download_dir=str(self.download_dir),
-                                    )
-                                    raise PermissionError(
-                                        f"無法創建下載目錄 {self.download_dir}，請檢查目錄權限"
-                                    ) from perm_error
+                                # 確保下載目錄存在且可寫入（提供詳細診斷訊息）
+                                self.ensure_directory_writable(self.download_dir)
 
                                 wb.save(file_path)
                                 wb.close()
