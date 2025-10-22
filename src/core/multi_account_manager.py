@@ -125,8 +125,8 @@ class MultiAccountManager:
                 self.logger.info("-" * 50)
 
             try:
-                # 從環境變數讀取 HEADLESS 設定
-                env_headless = os.getenv("HEADLESS", "false").lower() == "true"
+                # 從環境變數讀取 HEADLESS 設定（預設為 true，適合伺服器環境）
+                env_headless = os.getenv("HEADLESS", "true").lower() == "true"
 
                 # 如果有命令列參數覆寫，則使用該設定；否則使用環境變數
                 use_headless = (
