@@ -4,6 +4,7 @@
 """
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import List, Optional
 
 from selenium.webdriver.common.by import By
@@ -71,7 +72,6 @@ class ImprovedBaseScraper(ABC):
     def _setup_directories(self) -> None:
         """設定工作目錄"""
         import os
-        from pathlib import Path
         from dotenv import load_dotenv
 
         load_dotenv()
@@ -112,21 +112,20 @@ class ImprovedBaseScraper(ABC):
     def ensure_directory_writable(self, directory: Path) -> None:
         """
         確保目錄存在且可寫入，提供詳細的診斷訊息
-        
+
         Args:
             directory: 要檢查的目錄路徑
-            
+
         Raises:
             PermissionError: 當目錄無法創建或無寫入權限時
         """
         import os
         import getpass
-        from pathlib import Path
-        
+
         try:
             # 嘗試創建目錄（包含所有父目錄）
             directory.mkdir(parents=True, exist_ok=True)
-            
+
             # 測試目錄可寫性
             test_file = directory / ".write_test"
             try:
@@ -139,7 +138,7 @@ class ImprovedBaseScraper(ABC):
                 dir_stat = directory.stat()
                 dir_owner = dir_stat.st_uid
                 dir_mode = oct(dir_stat.st_mode)[-3:]
-                
+
                 error_msg = (
                     f"目錄存在但無寫入權限: {directory}\n"
                     f"當前用戶: {current_user}\n"
@@ -150,18 +149,18 @@ class ImprovedBaseScraper(ABC):
                 )
                 self.logger.error(error_msg, directory=str(directory), user=current_user)
                 raise PermissionError(error_msg) from write_error
-                
+
         except PermissionError as perm_error:
             # 無法創建目錄（父目錄權限問題）
             current_user = getpass.getuser()
-            
+
             # 找出哪一層目錄有問題
             problem_dir = directory
             while problem_dir != problem_dir.parent:
                 if problem_dir.exists():
                     break
                 problem_dir = problem_dir.parent
-            
+
             error_msg = (
                 f"無法創建下載目錄: {directory}\n"
                 f"問題可能出在父目錄: {problem_dir}\n"
@@ -181,7 +180,7 @@ class ImprovedBaseScraper(ABC):
                 f"   FREIGHT_DOWNLOAD_DIR=downloads/freight\n"
                 f"   UNPAID_DOWNLOAD_DIR=downloads/unpaid"
             )
-            
+
             self.logger.error(
                 error_msg,
                 directory=str(directory),
