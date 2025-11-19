@@ -41,7 +41,8 @@ class UnpaidScraper(ImprovedBaseScraper):
         url = "http://wedinlb03.e-can.com.tw/wEDI2012/wedilogin.asp"
 
         # 設定此爬蟲要使用的環境變數 key
-        self.download_dir_env_key = "UNPAID_DOWNLOAD_DIR"
+        self.download_dir_env_key = "UNPAID_DOWNLOAD_WORK_DIR"
+        self.download_ok_dir_env_key = "UNPAID_DOWNLOAD_OK_DIR"
 
         # 調用父類構造函數
         super().__init__(
@@ -49,7 +50,7 @@ class UnpaidScraper(ImprovedBaseScraper):
         )
 
         # download_base_dir 保留以保持向後相容，但標註為已棄用
-        self.download_base_dir = download_base_dir  # Deprecated: 改用環境變數 UNPAID_DOWNLOAD_DIR
+        self.download_base_dir = download_base_dir  # Deprecated: 改用環境變數 UNPAID_DOWNLOAD_WORK_DIR
 
         # 設定結束時間為當日
         self.end_date = datetime.now().strftime("%Y%m%d")
@@ -334,6 +335,17 @@ class UnpaidScraper(ImprovedBaseScraper):
 
             # 生成檔案名稱：運費未請款明細_{帳號}_{結束時間}.xlsx
             filename = f"運費未請款明細_{self.username}_{self.end_date}.xlsx"
+            
+            # 檢查檔案是否已下載
+            exists, existing_path = self.is_file_downloaded(filename)
+            if exists:
+                wb.close()  # 關閉未使用的 workbook
+                self.logger.info(
+                    f"⏭️ 檔案已存在，跳過生成: {filename}",
+                    location=str(existing_path)
+                )
+                return str(existing_path)
+            
             file_path = self.download_dir / filename
 
             # 確保下載目錄存在且可寫入（提供詳細診斷訊息）

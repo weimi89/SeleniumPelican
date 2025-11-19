@@ -70,7 +70,8 @@ class PaymentScraper(ImprovedBaseScraper):
         url = "http://wedinlb03.e-can.com.tw/wEDI2012/wedilogin.asp"
 
         # 設定此爬蟲要使用的環境變數 key
-        self.download_dir_env_key = "PAYMENT_DOWNLOAD_DIR"
+        self.download_dir_env_key = "PAYMENT_DOWNLOAD_WORK_DIR"
+        self.download_ok_dir_env_key = "PAYMENT_DOWNLOAD_OK_DIR"
 
         # 調用新的父類構造函數
         super().__init__(
@@ -81,7 +82,7 @@ class PaymentScraper(ImprovedBaseScraper):
         self.start_date = start_date
         self.end_date = end_date
         # download_base_dir 保留以保持向後相容，但標註為已棄用
-        self.download_base_dir = download_base_dir  # Deprecated: 改用環境變數 PAYMENT_DOWNLOAD_DIR
+        self.download_base_dir = download_base_dir  # Deprecated: 改用環境變數 PAYMENT_DOWNLOAD_WORK_DIR
 
         # 注意：下載目錄已由父類 ImprovedBaseScraper 從環境變數設置
         # 不需要再次覆蓋，保持與父類一致
@@ -1147,15 +1148,20 @@ class PaymentScraper(ImprovedBaseScraper):
 
                             # 生成檔案名稱
                             new_name = f"代收貨款匯款明細_{self.username}_{extracted_remittance_date}.xlsx"
+                            
+                            # 檢查檔案是否已下載
+                            exists, existing_path = self.is_file_downloaded(new_name)
+                            if exists:
+                                self.logger.info(
+                                    f"⏭️ 檔案已存在，跳過生成: {new_name}",
+                                    location=str(existing_path)
+                                )
+                                return new_name
+                            
                             new_path = self.download_dir / new_name
 
                             # 確保下載目錄存在且可寫入（提供詳細診斷訊息）
                             self.ensure_directory_writable(self.download_dir)
-
-                            # 如果目標檔案已存在，直接覆蓋
-                            if new_path.exists():
-                                self.logger.warning(f"⚠️ 檔案已存在，將覆蓋: {new_name}")
-                                new_path.unlink()
 
                             # 保存 Excel 檔案
                             wb.save(new_path)
@@ -1232,6 +1238,21 @@ class PaymentScraper(ImprovedBaseScraper):
                     continue
 
             if xlsx_button:
+                # 檢查可能的檔案名稱是否已存在（.xlsx 或 .xls）
+                possible_names = [
+                    f"代收貨款匯款明細_{self.username}_{remittance_date}.xlsx",
+                    f"代收貨款匯款明細_{self.username}_{remittance_date}.xls"
+                ]
+                
+                for possible_name in possible_names:
+                    exists, existing_path = self.is_file_downloaded(possible_name)
+                    if exists:
+                        self.logger.info(
+                            f"⏭️ 檔案已存在，跳過下載: {possible_name}",
+                            location=str(existing_path)
+                        )
+                        return possible_name
+                
                 # 獲取下載前的檔案列表
                 before_files = set(self.download_dir.glob("*"))
 
@@ -1251,11 +1272,6 @@ class PaymentScraper(ImprovedBaseScraper):
                             f"代收貨款匯款明細_{self.username}_{remittance_date}{new_file.suffix}"
                         )
                         new_path = self.download_dir / new_name
-
-                        # 如果目標檔案已存在，直接覆蓋
-                        if new_path.exists():
-                            self.logger.warning(f"⚠️ 檔案已存在，將覆蓋: {new_name}")
-                            new_path.unlink()  # 刪除舊檔案
 
                         new_file.rename(new_path)
                         self.logger.info(f"✅ 已重命名為: {new_name}")

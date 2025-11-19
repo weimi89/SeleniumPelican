@@ -263,9 +263,12 @@ class ConfigValidator:
             optional_vars = [
                 "CHROMEDRIVER_PATH",
                 "HEADLESS",
-                "PAYMENT_DOWNLOAD_DIR",
-                "UNPAID_DOWNLOAD_DIR",
-                "FREIGHT_DOWNLOAD_DIR",
+                "PAYMENT_DOWNLOAD_WORK_DIR",
+                "UNPAID_DOWNLOAD_WORK_DIR",
+                "FREIGHT_DOWNLOAD_WORK_DIR",
+                "PAYMENT_DOWNLOAD_OK_DIR",
+                "UNPAID_DOWNLOAD_OK_DIR",
+                "FREIGHT_DOWNLOAD_OK_DIR",
                 "PYTHONUNBUFFERED",
                 "LOG_LEVEL",
                 "WAIT_TIMEOUT",
@@ -405,9 +408,9 @@ class ConfigValidator:
                         "   2. CHROMEDRIVER_PATH - ChromeDriver 路徑（選用）\n"
                         "   3. HEADLESS - 無頭模式開關 true/false（選用，預設 false）\n"
                         "   4. 下載目錄設定（選用）：\n"
-                        "      - PAYMENT_DOWNLOAD_DIR（代收貨款）\n"
-                        "      - FREIGHT_DOWNLOAD_DIR（運費結帳）\n"
-                        "      - UNPAID_DOWNLOAD_DIR（運費未請款）\n"
+                        "      - PAYMENT_DOWNLOAD_WORK_DIR（代收貨款）\n"
+                        "      - FREIGHT_DOWNLOAD_WORK_DIR（運費結帳）\n"
+                        "      - UNPAID_DOWNLOAD_WORK_DIR（運費未請款）\n"
                         "   📝 提示：檔案中已包含各平台的快速設定範例"
                     )
                 except Exception as e:

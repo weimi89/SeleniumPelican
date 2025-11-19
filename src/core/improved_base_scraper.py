@@ -95,6 +95,27 @@ class ImprovedBaseScraper(ABC):
                 )
         else:
             self.download_dir = base_dir / "downloads"
+        
+        # 從環境變數讀取已下載檔案檢查目錄
+        # 子類別可以透過設定 download_ok_dir_env_key 屬性來指定要使用的環境變數
+        download_ok_dir_env_key = getattr(self, 'download_ok_dir_env_key', None)
+        if download_ok_dir_env_key:
+            custom_ok_dir = os.getenv(download_ok_dir_env_key)
+            if custom_ok_dir:
+                self.download_ok_dir = base_dir / custom_ok_dir
+                self.logger.info(
+                    f"使用自訂已下載檔案檢查目錄: {custom_ok_dir}",
+                    env_key=download_ok_dir_env_key
+                )
+            else:
+                # 如果未設定，使用下載目錄作為檢查目錄
+                self.download_ok_dir = self.download_dir
+                self.logger.info(
+                    f"環境變數 {download_ok_dir_env_key} 未設定，使用下載目錄作為檢查目錄"
+                )
+        else:
+            # 如果未設定 download_ok_dir_env_key，使用下載目錄作為檢查目錄
+            self.download_ok_dir = self.download_dir
 
         self.reports_dir = base_dir / "reports"
         self.logs_dir = base_dir / "logs"
@@ -103,6 +124,7 @@ class ImprovedBaseScraper(ABC):
         # 建立目錄
         for directory in [
             self.download_dir,
+            self.download_ok_dir,
             self.reports_dir,
             self.logs_dir,
             self.temp_dir,
@@ -176,9 +198,9 @@ class ImprovedBaseScraper(ABC):
                 f"   sudo chown {current_user}:{current_user} {directory}\n"
                 f"\n"
                 f"3. 或修改 .env 使用相對路徑（推薦）:\n"
-                f"   PAYMENT_DOWNLOAD_DIR=downloads/payment\n"
-                f"   FREIGHT_DOWNLOAD_DIR=downloads/freight\n"
-                f"   UNPAID_DOWNLOAD_DIR=downloads/unpaid"
+                f"   PAYMENT_DOWNLOAD_WORK_DIR=downloads/payment\n"
+                f"   FREIGHT_DOWNLOAD_WORK_DIR=downloads/freight\n"
+                f"   UNPAID_DOWNLOAD_WORK_DIR=downloads/unpaid"
             )
 
             self.logger.error(
@@ -188,6 +210,45 @@ class ImprovedBaseScraper(ABC):
                 user=current_user
             )
             raise PermissionError(error_msg) from perm_error
+
+    def is_file_downloaded(self, filename: str) -> tuple[bool, Optional[Path]]:
+        """
+        檢查檔案是否已下載（同時檢查 WORK_DIR 和 OK_DIR）
+        
+        Args:
+            filename: 要檢查的檔案名稱
+            
+        Returns:
+            (是否已存在, 檔案路徑或None)
+            
+        Examples:
+            >>> exists, path = self.is_file_downloaded("代收貨款匯款明細_5081794201_303251010500002.xlsx")
+            >>> if exists:
+            ...     print(f"檔案已存在於: {path}")
+        """
+        # 先檢查工作目錄
+        work_file = self.download_dir / filename
+        if work_file.exists() and work_file.is_file():
+            self.logger.info(
+                f"檔案已存在於工作目錄: {filename}",
+                location=str(work_file),
+                directory_type="WORK_DIR"
+            )
+            return True, work_file
+        
+        # 再檢查已確認目錄（如果與工作目錄不同）
+        if self.download_ok_dir != self.download_dir:
+            ok_file = self.download_ok_dir / filename
+            if ok_file.exists() and ok_file.is_file():
+                self.logger.info(
+                    f"檔案已存在於已確認目錄: {filename}",
+                    location=str(ok_file),
+                    directory_type="OK_DIR"
+                )
+                return True, ok_file
+        
+        # 檔案不存在
+        return False, None
 
     def _init_browser(self) -> None:
         """初始化瀏覽器"""

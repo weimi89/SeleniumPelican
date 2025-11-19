@@ -46,7 +46,8 @@ class FreightScraper(ImprovedBaseScraper):
         url = "http://wedinlb03.e-can.com.tw/wEDI2012/wedilogin.asp"
 
         # 設定此爬蟲要使用的環境變數 key
-        self.download_dir_env_key = "FREIGHT_DOWNLOAD_DIR"
+        self.download_dir_env_key = "FREIGHT_DOWNLOAD_WORK_DIR"
+        self.download_ok_dir_env_key = "FREIGHT_DOWNLOAD_OK_DIR"
 
         # 調用父類構造函數
         super().__init__(
@@ -57,7 +58,7 @@ class FreightScraper(ImprovedBaseScraper):
         self.start_month = start_month
         self.end_month = end_month
         # download_base_dir 保留以保持向後相容，但標註為已棄用
-        self.download_base_dir = download_base_dir  # Deprecated: 改用環境變數 FREIGHT_DOWNLOAD_DIR
+        self.download_base_dir = download_base_dir  # Deprecated: 改用環境變數 FREIGHT_DOWNLOAD_WORK_DIR
 
         # 轉換月份為日期格式供日期操作使用
         self.start_date = None
@@ -791,6 +792,16 @@ class FreightScraper(ImprovedBaseScraper):
                                 self.logger.info(f"   實際檔案內容: {actual_invoice_info}")
                                 self.logger.info(f"   最終檔案名: {filename}")
 
+                                # 檢查檔案是否已下載
+                                exists, existing_path = self.is_file_downloaded(filename)
+                                if exists:
+                                    wb.close()  # 關閉未使用的 workbook
+                                    self.logger.info(
+                                        f"⏭️ 檔案已存在，跳過生成: {filename}",
+                                        location=str(existing_path)
+                                    )
+                                    return [str(existing_path)]
+                                
                                 # 保存檔案
                                 file_path = self.download_dir / filename
 
