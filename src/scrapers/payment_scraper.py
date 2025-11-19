@@ -612,7 +612,7 @@ class PaymentScraper(ImprovedBaseScraper):
 
                     # 收集所有匯款編號及其對應的匯款日和發票號碼
                     payment_data = []  # 存儲 {payment_no, remittance_date, invoice_no}
-                    
+
                     # 從表格中提取完整資訊
                     try:
                         tables = self.driver.find_elements(By.TAG_NAME, "table")
@@ -631,7 +631,7 @@ class PaymentScraper(ImprovedBaseScraper):
                                             remittance_date = cells[8].text.strip()
                                             # td[9]: 發票號碼
                                             invoice_no = cells[9].text.strip()
-                                            
+
                                             if payment_no and len(payment_no) > 6:
                                                 payment_data.append({
                                                     "payment_no": payment_no,
@@ -649,7 +649,7 @@ class PaymentScraper(ImprovedBaseScraper):
                         payment_no = payment_info["payment_no"]
                         remittance_date = payment_info["remittance_date"]
                         invoice_no = payment_info["invoice_no"]
-                        
+
                         self.logger.info(
                             f"🔗 正在處理匯款編號 ({i+1}/{len(payment_data)}): {payment_no}"
                         )
@@ -950,7 +950,7 @@ class PaymentScraper(ImprovedBaseScraper):
                     if new_file.suffix.lower() in [".xlsx", ".xls"]:
                         # 在無法獲取匯款日和發票號碼時，使用當前日期和 payment_no
                         current_date = datetime.now().strftime("%Y%m%d")
-                        new_name = f"代收貨款匯款明細_{self.username}_{current_date}_{payment_no}{new_file.suffix}"
+                        new_name = f"代收貨款匯款明細_{self.username}_{current_date}{new_file.suffix}"
                         new_path = self.download_dir / new_name
                         new_file.rename(new_path)
                         downloaded_files.append(str(new_path))
@@ -1061,7 +1061,7 @@ class PaymentScraper(ImprovedBaseScraper):
                             # 提取匯款日（第9欄，索引8）和發票號碼（第10欄，索引9）
                             extracted_remittance_date = remittance_date
                             extracted_invoice_no = invoice_no
-                            
+
                             if (not extracted_remittance_date or not extracted_invoice_no) and len(data_array) > 1:
                                 try:
                                     # 從 data-fileblob 數據中提取（備用，通常不會用到）
@@ -1069,23 +1069,23 @@ class PaymentScraper(ImprovedBaseScraper):
                                     if not extracted_remittance_date and len(data_array[1]) > 8:
                                         extracted_remittance_date = str(data_array[1][8]).strip()
                                         self.logger.info(f"✅ 從 data-fileblob 提取到匯款日: {extracted_remittance_date}")
-                                    
+
                                     if not extracted_invoice_no and len(data_array[1]) > 9:
                                         extracted_invoice_no = str(data_array[1][9]).strip()
                                         self.logger.info(f"✅ 從 data-fileblob 提取到發票號碼: {extracted_invoice_no}")
                                 except (IndexError, AttributeError) as e:
                                     self.logger.warning(f"⚠️ 從 data-fileblob 提取失敗: {e}")
-                            
+
                             # 如果還是沒有匯款日，使用當前日期
                             if not extracted_remittance_date:
                                 extracted_remittance_date = datetime.now().strftime("%Y%m%d")
                                 self.logger.warning(f"⚠️ 使用當前日期作為匯款日: {extracted_remittance_date}")
-                            
+
                             # 如果沒有發票號碼，使用 payment_no
                             if not extracted_invoice_no:
                                 extracted_invoice_no = payment_no
                                 self.logger.warning(f"⚠️ 使用匯款編號作為發票號碼: {extracted_invoice_no}")
-                            
+
                             # 使用 openpyxl 創建 Excel 檔案
                             wb = openpyxl.Workbook()
                             ws = wb.active
@@ -1146,7 +1146,7 @@ class PaymentScraper(ImprovedBaseScraper):
                                 ].width = adjusted_width
 
                             # 生成檔案名稱
-                            new_name = f"代收貨款匯款明細_{self.username}_{extracted_remittance_date}_{extracted_invoice_no}.xlsx"
+                            new_name = f"代收貨款匯款明細_{self.username}_{extracted_remittance_date}.xlsx"
                             new_path = self.download_dir / new_name
 
                             # 確保下載目錄存在且可寫入（提供詳細診斷訊息）
@@ -1200,16 +1200,16 @@ class PaymentScraper(ImprovedBaseScraper):
     def _fallback_download_excel(self, payment_no: str, remittance_date: Optional[str] = None, invoice_no: Optional[str] = None) -> Optional[str]:
         """備用的傳統下載方式"""
         assert self.driver is not None, "WebDriver must be initialized"
-        
+
         # 處理默認值
         if not remittance_date:
             remittance_date = datetime.now().strftime("%Y%m%d")
             self.logger.warning(f"⚠️ 使用當前日期作為匯款日: {remittance_date}")
-        
+
         if not invoice_no:
             invoice_no = payment_no
             self.logger.warning(f"⚠️ 使用匯款編號作為發票號碼: {invoice_no}")
-        
+
         try:
             # 尋找並點擊匯出xlsx按鈕
             xlsx_selectors = [
@@ -1248,7 +1248,7 @@ class PaymentScraper(ImprovedBaseScraper):
                 for new_file in new_files:
                     if new_file.suffix.lower() in [".xlsx", ".xls"]:
                         new_name = (
-                            f"代收貨款匯款明細_{self.username}_{remittance_date}_{invoice_no}{new_file.suffix}"
+                            f"代收貨款匯款明細_{self.username}_{remittance_date}{new_file.suffix}"
                         )
                         new_path = self.download_dir / new_name
 
@@ -1265,7 +1265,7 @@ class PaymentScraper(ImprovedBaseScraper):
                 crdownload_files = list(self.download_dir.glob("*.crdownload"))
                 if crdownload_files:
                     crdownload_file = crdownload_files[0]
-                    new_name = f"代收貨款匯款明細_{self.username}_{remittance_date}_{invoice_no}.xlsx"
+                    new_name = f"代收貨款匯款明細_{self.username}_{remittance_date}.xlsx"
                     new_path = self.download_dir / new_name
 
                     if new_path.exists():
