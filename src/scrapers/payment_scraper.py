@@ -918,10 +918,10 @@ class PaymentScraper(ImprovedBaseScraper):
                 # 嘗試多種可能的匯出按鈕選擇器
                 xlsx_selectors = [
                     "//button[contains(text(), '匯出xlsx')]",
-                    "//input[@value*='匯出xlsx']",
+                    "//input[contains(@value, '匯出xlsx')]",
                     "//a[contains(text(), '匯出xlsx')]",
                     "//button[contains(text(), 'Excel')]",
-                    "//input[@value*='Excel']",
+                    "//input[contains(@value, 'Excel')]",
                     "//form//input[@type='submit'][contains(@value, '匯出')]",
                 ]
 
@@ -1225,10 +1225,10 @@ class PaymentScraper(ImprovedBaseScraper):
             # 尋找並點擊匯出xlsx按鈕
             xlsx_selectors = [
                 "//button[contains(text(), '匯出xlsx')]",
-                "//input[@value*='匯出xlsx']",
+                "//input[contains(@value, '匯出xlsx')]",
                 "//a[contains(text(), '匯出xlsx')]",
                 "//button[contains(text(), 'Excel')]",
-                "//input[@value*='Excel']",
+                "//input[contains(@value, 'Excel')]",
                 "//form//input[@type='submit'][contains(@value, '匯出')]",
             ]
 
