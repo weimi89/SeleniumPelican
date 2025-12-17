@@ -645,6 +645,11 @@ class PaymentScraper(ImprovedBaseScraper):
                     except Exception as e:
                         self.logger.warning(f"⚠️ 從表格提取資料失敗: {e}")
 
+                    # 檢查是否有資料需要下載
+                    if not payment_data:
+                        self.logger.info("📭 查詢結果筆數為 0，跳過下載")
+                        return []
+
                     # 分別處理每個匯款記錄 - 使用多視窗方式
                     for i, payment_info in enumerate(payment_data):
                         payment_no = payment_info["payment_no"]

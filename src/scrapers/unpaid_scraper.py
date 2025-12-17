@@ -284,6 +284,20 @@ class UnpaidScraper(ImprovedBaseScraper):
                 self.logger.error("❌ 表格中沒有找到數據")
                 return None
 
+            # 檢查實際數據筆數（排除表頭和彙總行如小計、總計）
+            summary_keywords = ["小計", "總計", "合計"]
+            data_row_count = 0
+            for data_row in table_data[1:]:  # 跳過表頭
+                # 檢查該行是否為彙總行
+                row_text = "".join(str(cell) for cell in data_row)
+                is_summary_row = any(keyword in row_text for keyword in summary_keywords)
+                if not is_summary_row:
+                    data_row_count += 1
+            
+            if data_row_count <= 0:
+                self.logger.info("📭 查詢結果筆數為 0，跳過下載")
+                return None
+
             self.logger.log_data_info("成功提取表格數據", count=len(table_data))
 
             # 創建Excel檔案

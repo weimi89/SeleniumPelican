@@ -695,6 +695,20 @@ class FreightScraper(ImprovedBaseScraper):
                             self.logger.info(f"   數據行數: {len(data_array)}")
 
                             if data_array:
+                                # 檢查實際數據筆數（排除表頭和彙總行如小計、總計）
+                                summary_keywords = ["小計", "總計", "合計"]
+                                data_row_count = 0
+                                for row in data_array[1:]:  # 跳過表頭
+                                    # 檢查該行是否為彙總行
+                                    row_text = "".join(str(cell) for cell in row)
+                                    is_summary_row = any(keyword in row_text for keyword in summary_keywords)
+                                    if not is_summary_row:
+                                        data_row_count += 1
+                                
+                                if data_row_count <= 0:
+                                    self.logger.info("📭 查詢結果筆數為 0，跳過下載")
+                                    return []
+
                                 # 使用 openpyxl 創建 Excel 檔案
                                 wb = openpyxl.Workbook()
                                 ws = wb.active
