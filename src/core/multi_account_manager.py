@@ -15,6 +15,8 @@ from typing import Any, Callable, Optional
 from dotenv import load_dotenv
 
 from ..utils.windows_encoding_utils import safe_print
+from ..utils.discord_notifier import DiscordNotifier
+from ..utils.email_notifier import EmailNotifier
 from .logging_config import ScrapingLogger, get_logger, log_with_safe_print
 from .type_aliases import AccountConfig
 
@@ -26,6 +28,9 @@ class MultiAccountManager:
         self.config_file: str = config_file
         self.logger: ScrapingLogger = get_logger("multi_account_manager")
         self.config: list[AccountConfig] = []
+        self.current_function_name: Optional[str] = None
+        self.discord_notifier = DiscordNotifier()
+        self.email_notifier = EmailNotifier()
         load_dotenv()  # 載入環境變數
         self.load_config()
 
@@ -95,6 +100,17 @@ class MultiAccountManager:
             end_month: 結束月份 (用於運費查詢)
         """
         accounts = self.get_enabled_accounts()
+        start_time = time.time()  # 記錄開始時間
+
+        # 設定當前功能名稱（根據 scraper 類別名稱）
+        if "Payment" in scraper_class.__name__:
+            self.current_function_name = "代收貨款查詢"
+        elif "Freight" in scraper_class.__name__:
+            self.current_function_name = "運費查詢"
+        elif "Unpaid" in scraper_class.__name__:
+            self.current_function_name = "運費未請款查詢"
+        else:
+            self.current_function_name = scraper_class.__name__
 
         results = []
 
@@ -271,6 +287,63 @@ class MultiAccountManager:
         self.logger.log_operation_success(
             "詳細報告保存", report_file=str(report_file), total_accounts=len(results)
         )
+
+        # 計算執行時間（供 Discord 和 Email 通知使用）
+        end_time = time.time()
+        total_execution_minutes = (end_time - start_time) / 60
+
+        # 收集所有下載的檔案清單（供 Discord 和 Email 通知使用）
+        all_downloaded_files = []
+        for result in successful_accounts:
+            username = result["username"]
+            downloads = result.get("downloads", [])
+            for download in downloads:
+                # downloads 是檔案路徑列表
+                filename = os.path.basename(download) if isinstance(download, str) else str(download)
+                all_downloaded_files.append({"username": username, "filename": filename})
+
+        # 發送 Discord 通知
+        if self.discord_notifier.is_enabled():
+            safe_print("\n📢 正在發送 Discord 通知...")
+
+            # 發送執行摘要
+            self.discord_notifier.send_execution_summary(
+                function_name=self.current_function_name or "未知功能",
+                total_accounts=len(results),
+                successful_accounts=len(successful_accounts),
+                failed_accounts=len(failed_accounts),
+                security_warning_accounts=0,  # 宅配通目前沒有密碼警告機制
+                total_downloads=total_downloads,
+                total_execution_minutes=total_execution_minutes,
+                downloaded_files=all_downloaded_files,
+            )
+
+        # 發送 Email 通知
+        if self.email_notifier.is_enabled():
+            safe_print("\n📧 正在發送 Email 通知...")
+
+            # 組合失敗帳號詳情
+            failed_accounts_details = [
+                {"username": r["username"], "error": r.get("error", "未知錯誤")}
+                for r in failed_accounts
+            ]
+            # 執行的帳號清單
+            executed_accounts = [r["username"] for r in results]
+
+            # 發送執行摘要
+            self.email_notifier.send_execution_summary(
+                function_name=self.current_function_name or "未知功能",
+                total_accounts=len(results),
+                successful_accounts=len(successful_accounts),
+                failed_accounts=len(failed_accounts),
+                security_warning_accounts=0,  # 宅配通目前沒有密碼警告機制
+                total_downloads=total_downloads,
+                total_execution_minutes=total_execution_minutes,
+                downloaded_files=all_downloaded_files,
+                failed_accounts_details=failed_accounts_details,
+                executed_accounts=executed_accounts,
+            )
+
         self.logger.info("=" * 80)
 
         return results

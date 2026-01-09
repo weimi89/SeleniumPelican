@@ -295,7 +295,7 @@ class FreightScraper(ImprovedBaseScraper):
                             total_cells = len(cells) + len(th_cells)
 
                             if total_cells > 0:
-                                self.logger.info(
+                                self.logger.debug(
                                     f"   行 {row_index + 1}: {len(cells)} 個 td, {len(th_cells)} 個 th"
                                 )
 
@@ -304,10 +304,6 @@ class FreightScraper(ImprovedBaseScraper):
                                 for cell_index, cell in enumerate(all_cells):
                                     cell_text = cell.text.strip()
                                     if cell_text:
-                                        self.logger.info(
-                                            f"     欄位 {cell_index + 1}: '{cell_text}'"
-                                        )
-
                                         # 檢查這個欄位是否包含發票號碼（英數字組合，長度 > 8）
                                         # 排除包含中文字符、特殊符號（如 - 後接中文）的客戶名稱
                                         is_invoice_like = (

@@ -170,6 +170,16 @@ cython_debug/
 
 tests/*
 logs/*
-openspec/*
+backups/*
 
 uv.lock
+
+# Claude Code 會話記錄
+.claude-sessions/
+
+# AI 工具設定目錄
+.bmad-core/
+.serena/
+openspec/
+.claude/settings.json
+.claude/scripts/

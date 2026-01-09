@@ -21,7 +21,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 ## 專案概述
 
-WEDI 宅配通自動化工具：Selenium 自動下載代收貨款匯款明細、運費結帳資料、運費未請款明細。模組化架構，抽象基礎類別設計。
+台灣宅配通 WEDI 自動化工具：Selenium 自動下載代收貨款匯款明細、運費結帳資料、運費未請款明細。模組化架構，抽象基礎類別設計，支援 Discord 和 Email 通知。
 
 ## 專案結構
 
@@ -29,14 +29,14 @@ WEDI 宅配通自動化工具：Selenium 自動下載代收貨款匯款明細、
 src/
 ├── core/       # BaseScraper, ImprovedBaseScraper, MultiAccountManager, browser_utils, config_validator, smart_wait, logging_config, diagnostic_manager
 ├── scrapers/   # PaymentScraper, FreightScraper, UnpaidScraper
-└── utils/      # windows_encoding_utils
+└── utils/      # windows_encoding_utils, discord_notifier, email_notifier
 tests/          # unit/, integration/, performance/
 scripts/        # 安裝/更新/執行腳本
 ```
 
 **關鍵檔案**：
 - `accounts.json`：帳號憑證（gitignore），`enabled: true/false` 控制處理
-- `.env`：Chrome 路徑，例：`CHROME_BINARY_PATH="/path/to/chrome"`
+- `.env`：Chrome 路徑、通知設定，例：`CHROME_BINARY_PATH="/path/to/chrome"`
 - `pyproject.toml`：依賴管理（uv）
 
 ## 核心架構
@@ -46,11 +46,16 @@ scripts/        # 安裝/更新/執行腳本
 2. **FreightScraper**：運費月結（YYYYMM 範圍，預設上月）
 3. **UnpaidScraper**：運費未請款（預設當日，BeautifulSoup 解析）
 
+### 通知系統
+- **DiscordNotifier**：Webhook 通知，執行報告與密碼警告
+- **EmailNotifier**：SMTP 通知（TLS/SSL），執行摘要與安全提醒
+
 ### 關鍵技術
 - **iframe 導航**：所有操作在 `datamain` iframe 維持上下文
 - **驗證碼**：自動偵測（5種方法）+ 手動輸入（20秒等待），⚠️ headless 模式無法手動輸入
 - **多帳號**：MultiAccountManager 依序處理，個別失敗不中斷流程
 - **跨平台**：.env 設定 Chrome 路徑，safe_print() 處理 Windows Unicode
+- **版本快取**：browser_utils 模組級快取，減少重複版本檢測
 
 ## 快速指令
 
@@ -85,6 +90,26 @@ uv sync
 uv run python -u src/scrapers/payment_scraper.py
 uv run python -u src/scrapers/freight_scraper.py
 uv run python -u src/scrapers/unpaid_scraper.py
+```
+
+## 通知設定
+
+### Discord 通知
+```bash
+# .env 設定
+DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..."
+```
+
+### Email 通知
+```bash
+# .env 設定
+MAIL_HOST=smtp.example.com
+MAIL_PORT=587
+MAIL_USERNAME=user@example.com
+MAIL_PASSWORD=your_password
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=sender@example.com
+MAIL_TO_ADDRESS=recipient@example.com
 ```
 
 ## 輸出結構

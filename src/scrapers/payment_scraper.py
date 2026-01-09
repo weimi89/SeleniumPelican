@@ -111,14 +111,6 @@ class PaymentScraper(ImprovedBaseScraper):
         )
 
         try:
-            # 快速檢查是否有日期輸入框 (2秒超時)
-            # WEDI 某些查詢頁面可能不需要手動輸入日期
-            has_date_inputs = False
-            if self.waiter:
-                has_date_inputs = self.waiter.wait_for_element_visible(
-                    By.CSS_SELECTOR, 'input[type="text"]', timeout=2
-                )
-
             # 嘗試尋找所有日期輸入框
             date_inputs = self.driver.find_elements(
                 By.CSS_SELECTOR, 'input[type="text"]'
@@ -369,30 +361,9 @@ class PaymentScraper(ImprovedBaseScraper):
             inputs = self.driver.find_elements(By.TAG_NAME, "input")
             forms = self.driver.find_elements(By.TAG_NAME, "form")
 
-            self.logger.debug(f"   找到 {len(buttons)} 個按鈕:")
-            for i, btn in enumerate(buttons[:10]):  # 只顯示前10個
-                try:
-                    text = (
-                        btn.text
-                        or btn.get_attribute("value")
-                        or btn.get_attribute("title")
-                    )
-                    self.logger.info(f"     按鈕 {i+1}: {text}")
-                except (AttributeError, StaleElementReferenceException):
-                    pass
-
-            self.logger.info(f"   找到 {len(inputs)} 個input元素:")
-            for i, inp in enumerate(inputs[:10]):  # 只顯示前10個
-                try:
-                    inp_type = inp.get_attribute("type")
-                    value = inp.get_attribute("value") or inp.text
-                    self.logger.info(
-                        f"     Input {i+1}: type='{inp_type}' value='{value}'"
-                    )
-                except (AttributeError, StaleElementReferenceException):
-                    pass
-
-            self.logger.info(f"   找到 {len(forms)} 個表單")
+            self.logger.debug(f"   找到 {len(buttons)} 個按鈕")
+            self.logger.debug(f"   找到 {len(inputs)} 個input元素")
+            self.logger.debug(f"   找到 {len(forms)} 個表單")
 
             # 在詳細頁面填入查詢日期範圍
             self.logger.info(f"📅 在詳細頁面填入查詢日期...", operation="search")
@@ -438,44 +409,6 @@ class PaymentScraper(ImprovedBaseScraper):
                     time.sleep(Timeouts.PAGE_LOAD)  # 等待查詢結果
                 except (NoSuchElementException, ElementClickInterceptedException):
                     self.logger.warning(f"⚠️ 未找到查詢按鈕，跳過此步驟", operation="search")
-
-                # 查詢後再次檢查頁面元素
-                self.logger.debug(f"🔍 查詢後頁面調試資訊:", operation="search")
-                buttons_after = self.driver.find_elements(By.TAG_NAME, "button")
-                inputs_after = self.driver.find_elements(By.TAG_NAME, "input")
-                links_after = self.driver.find_elements(By.TAG_NAME, "a")
-
-                self.logger.info(f"   查詢後找到 {len(buttons_after)} 個按鈕:")
-                for i, btn in enumerate(buttons_after[:10]):
-                    try:
-                        text = (
-                            btn.text
-                            or btn.get_attribute("value")
-                            or btn.get_attribute("title")
-                        )
-                        self.logger.info(f"     按鈕 {i+1}: {text}")
-                    except (AttributeError, StaleElementReferenceException):
-                        pass
-
-                self.logger.info(f"   查詢後找到 {len(inputs_after)} 個input元素:")
-                for i, inp in enumerate(inputs_after[:15]):
-                    try:
-                        inp_type = inp.get_attribute("type")
-                        value = inp.get_attribute("value") or inp.text
-                        self.logger.info(
-                            f"     Input {i+1}: type='{inp_type}' value='{value}'"
-                        )
-                    except (AttributeError, StaleElementReferenceException):
-                        pass
-
-                self.logger.info(f"   查詢後找到 {len(links_after)} 個連結:")
-                for i, link in enumerate(links_after[:10]):
-                    try:
-                        text = link.text.strip()
-                        if text and ("匯出" in text or "Excel" in text or "下載" in text):
-                            self.logger.info(f"     重要連結 {i+1}: {text}")
-                    except (AttributeError, StaleElementReferenceException):
-                        pass
 
                 # 查詢結果頁面載入完成
 
