@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from ..utils.windows_encoding_utils import safe_print
 from ..utils.discord_notifier import DiscordNotifier
 from ..utils.email_notifier import EmailNotifier
+from .browser_utils import _cleanup_headless_chrome, cleanup_temp_user_data_dirs
 from .logging_config import ScrapingLogger, get_logger, log_with_safe_print
 from .type_aliases import AccountConfig
 
@@ -141,6 +142,11 @@ class MultiAccountManager:
                 self.logger.info("-" * 50)
 
             try:
+                # 主動清理前一個帳號可能殘留的 Chrome 進程和臨時檔案
+                if i > 1:
+                    _cleanup_headless_chrome()
+                    cleanup_temp_user_data_dirs()
+
                 # 從環境變數讀取 HEADLESS 設定（預設為 true，適合伺服器環境）
                 env_headless = os.getenv("HEADLESS", "true").lower() == "true"
 

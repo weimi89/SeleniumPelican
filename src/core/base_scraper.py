@@ -320,7 +320,11 @@ class BaseScraper:
             return False
 
     def close(self) -> None:
-        """關閉瀏覽器"""
+        """關閉瀏覽器並清理臨時目錄"""
         if self.driver:
             self.driver.quit()
             self.logger.info("瀏覽器已關閉", operation="cleanup")
+
+        # 清理臨時的 user-data-dir 目錄
+        from .browser_utils import cleanup_temp_user_data_dirs
+        cleanup_temp_user_data_dirs()

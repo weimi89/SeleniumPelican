@@ -6,9 +6,11 @@
 """
 
 import os
+import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from typing import Optional, Tuple
 
@@ -24,6 +26,19 @@ from .logging_config import get_logger
 # 模組級別快取：避免每次初始化都重複檢測版本
 _version_cache: dict[str, Optional[str]] = {}
 _init_count: int = 0  # 追蹤初始化次數，用於減少重複日誌
+_temp_user_data_dirs: list[str] = []  # 追蹤臨時 user-data-dir，用於清理
+
+
+def cleanup_temp_user_data_dirs() -> None:
+    """清理所有臨時的 Chrome user-data-dir 目錄"""
+    global _temp_user_data_dirs
+    for dir_path in _temp_user_data_dirs:
+        try:
+            if os.path.exists(dir_path):
+                shutil.rmtree(dir_path, ignore_errors=True)
+        except Exception:
+            pass
+    _temp_user_data_dirs.clear()
 
 
 def _get_chrome_version(chrome_path: Optional[str] = None) -> Optional[str]:
@@ -260,10 +275,11 @@ def init_chrome_browser(
         tuple: (driver, wait) WebDriver 實例和 WebDriverWait 實例
 
     重試邏輯：
+    - 每次嘗試前：清理殘留 Chrome 進程 + 使用獨立 user-data-dir
     - 輪次 1：嘗試所有方法（CHROMEDRIVER_PATH → 系統 → WebDriver Manager）
-    - 輪次 2+：清理殘留 Chrome 進程後重試，延遲逐次增加
+    - 輪次 2+：增加等待延遲後重試
     """
-    global _init_count
+    global _init_count, _temp_user_data_dirs
     _init_count += 1
     is_first_init = _init_count == 1
 
@@ -273,47 +289,8 @@ def init_chrome_browser(
     else:
         logger.debug("🚀 啟動瀏覽器...", headless=headless)
 
-    # Chrome 選項設定
-    chrome_options = Options()
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--window-size=1280,720")
-
-    # 隱藏 Chrome 警告訊息
-    chrome_options.add_argument("--disable-logging")
-    chrome_options.add_argument("--log-level=3")
-    chrome_options.add_argument("--silent")
-    chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--disable-gpu-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--remote-debugging-port=0")
-    chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
-    chrome_options.add_experimental_option("useAutomationExtension", False)
-
-    # Ubuntu/Linux 平台特定優化
+    # 偵測作業系統平台
     is_linux = sys.platform.startswith("linux")
-    if is_linux:
-        chrome_options.add_argument("--disable-features=VizDisplayCompositor")
-        chrome_options.add_argument("--disable-software-rasterizer")
-        chrome_options.add_argument("--disable-gpu")
-        if is_first_init:
-            logger.info("🐧 檢測到 Linux 環境，已套用 Ubuntu 優化參數", platform="linux")
-
-    # 如果設定為無頭模式，添加 headless 參數
-    if headless:
-        chrome_options.add_argument("--headless=new")
-        if is_linux:
-            chrome_options.add_argument("--disable-dev-shm-usage")
-            chrome_options.add_argument("--disable-software-rasterizer")
-            if is_first_init:
-                logger.info("🔧 已套用 Ubuntu 無頭模式記憶體優化", mode="headless", platform="linux")
-        else:
-            chrome_options.add_argument("--disable-gpu")
-        if is_first_init:
-            logger.info("🔇 使用無頭模式（不顯示瀏覽器視窗）", mode="headless")
-    else:
-        if is_first_init:
-            logger.info("🖥️ 使用視窗模式（顯示瀏覽器）", mode="windowed")
 
     # 從環境變數讀取 Chrome 路徑（跨平台設定）
     chrome_binary_path = os.getenv("CHROME_BINARY_PATH")
@@ -325,7 +302,6 @@ def init_chrome_browser(
             logger.critical(error_msg, chrome_path=chrome_binary_path, platform=sys.platform)
             raise FileNotFoundError(error_msg)
 
-        chrome_options.binary_location = chrome_binary_path
         if is_first_init:
             logger.info(
                 f"🌐 使用指定 Chrome 路徑: {chrome_binary_path}", chrome_path=chrome_binary_path
@@ -336,46 +312,6 @@ def init_chrome_browser(
                 "⚠️ 未設定 CHROME_BINARY_PATH 環境變數，使用系統預設 Chrome", chrome_path="system_default"
             )
 
-    # 設定下載路徑和安全設定
-    if download_dir:
-        prefs = {
-            "download.default_directory": str(download_dir),
-            "download.prompt_for_download": False,
-            "download.directory_upgrade": True,
-            "safebrowsing.enabled": False,
-            "safebrowsing.disable_download_protection": True,
-            "profile.default_content_setting_values.automatic_downloads": 1,
-            "profile.default_content_settings.popups": 0,
-            "profile.content_settings.exceptions.automatic_downloads.*.setting": 1,
-        }
-        chrome_options.add_experimental_option("prefs", prefs)
-
-        chrome_options.add_argument("--disable-web-security")
-        chrome_options.add_argument("--allow-running-insecure-content")
-        chrome_options.add_argument("--disable-features=VizDisplayCompositor")
-        chrome_options.add_argument("--disable-features=BlockInsecurePrivateNetworkRequests")
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_argument("--disable-features=DownloadBubble,DownloadBubbleV2")
-        chrome_options.add_argument("--disable-component-extensions-with-background-pages")
-        chrome_options.add_argument("--disable-default-apps")
-        chrome_options.add_argument("--disable-client-side-phishing-detection")
-        chrome_options.add_argument("--disable-hang-monitor")
-        chrome_options.add_argument("--disable-prompt-on-repost")
-        chrome_options.add_argument("--disable-background-timer-throttling")
-        chrome_options.add_argument("--disable-renderer-backgrounding")
-        chrome_options.add_argument("--disable-backgrounding-occluded-windows")
-        chrome_options.add_argument("--force-color-profile=srgb")
-        chrome_options.add_argument("--metrics-recording-only")
-        chrome_options.add_argument("--disable-background-networking")
-        chrome_options.add_argument("--disable-sync")
-        chrome_options.add_argument("--no-first-run")
-        chrome_options.add_argument("--safebrowsing-disable-auto-update")
-        chrome_options.add_argument("--safebrowsing-disable-download-protection")
-        chrome_options.add_argument("--disable-features=TranslateUI")
-        chrome_options.add_argument("--disable-features=Translate")
-        if is_first_init:
-            logger.info("🔓 已配置瀏覽器允許不安全內容下載並關閉所有安全檢查", download_dir=download_dir)
-
     # 取得 Chrome 版本供後續版本檢查使用
     chrome_version = _get_chrome_version(chrome_binary_path)
     if chrome_version:
@@ -385,23 +321,125 @@ def init_chrome_browser(
 
     # 初始化 Chrome 瀏覽器（帶重試機制）
     for attempt in range(1, max_retries + 1):
-        # 從第二次開始：清理殘留進程並等待
-        if attempt > 1:
+        # 每次嘗試前都清理殘留進程（包括第一次）
+        if attempt == 1:
+            logger.info("🧹 清理殘留的 Chrome/ChromeDriver 進程...")
+        else:
             logger.warning(
                 f"🔄 第 {attempt}/{max_retries} 次重試...",
                 attempt=attempt,
                 max_retries=max_retries,
             )
             logger.info("🧹 清理殘留的無頭 Chrome 進程...")
-            _cleanup_headless_chrome()
+        _cleanup_headless_chrome()
+
+        if attempt > 1:
             delay = retry_delay * attempt
             logger.info(f"⏳ 等待 {delay} 秒後重試...")
             time.sleep(delay)
+
+        # 為每次嘗試建立獨立的 user-data-dir，避免 profile lock 衝突
+        temp_user_data_dir = tempfile.mkdtemp(prefix="selenium_chrome_")
+        _temp_user_data_dirs.append(temp_user_data_dir)
+
+        # 每次嘗試都重新建立 Chrome 選項（因為 user-data-dir 不同）
+        chrome_options = Options()
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--window-size=1280,720")
+
+        # 使用獨立的 user-data-dir，避免 Chrome profile lock 衝突
+        chrome_options.add_argument(f"--user-data-dir={temp_user_data_dir}")
+
+        # 隱藏 Chrome 警告訊息
+        chrome_options.add_argument("--disable-logging")
+        chrome_options.add_argument("--log-level=3")
+        chrome_options.add_argument("--silent")
+        chrome_options.add_argument("--disable-extensions")
+        chrome_options.add_argument("--disable-gpu-sandbox")
+        chrome_options.add_argument("--remote-debugging-port=0")
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-logging"])
+        chrome_options.add_experimental_option("useAutomationExtension", False)
+
+        # Ubuntu/Linux 平台特定優化
+        if is_linux:
+            chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+            chrome_options.add_argument("--disable-software-rasterizer")
+            chrome_options.add_argument("--disable-gpu")
+            if is_first_init and attempt == 1:
+                logger.info("🐧 檢測到 Linux 環境，已套用 Ubuntu 優化參數", platform="linux")
+
+        # 如果設定為無頭模式，添加 headless 參數
+        if headless:
+            chrome_options.add_argument("--headless")
+            if is_linux:
+                chrome_options.add_argument("--disable-software-rasterizer")
+                if is_first_init and attempt == 1:
+                    logger.info("🔧 已套用 Ubuntu 無頭模式記憶體優化", mode="headless", platform="linux")
+            else:
+                chrome_options.add_argument("--disable-gpu")
+            if is_first_init and attempt == 1:
+                logger.info("🔇 使用無頭模式（不顯示瀏覽器視窗）", mode="headless")
+        else:
+            if is_first_init and attempt == 1:
+                logger.info("🖥️ 使用視窗模式（顯示瀏覽器）", mode="windowed")
+
+        # 設定 Chrome 路徑
+        if chrome_binary_path:
+            chrome_options.binary_location = chrome_binary_path
+
+        # 設定下載路徑和安全設定
+        if download_dir:
+            prefs = {
+                "download.default_directory": str(download_dir),
+                "download.prompt_for_download": False,
+                "download.directory_upgrade": True,
+                "safebrowsing.enabled": False,
+                "safebrowsing.disable_download_protection": True,
+                "profile.default_content_setting_values.automatic_downloads": 1,
+                "profile.default_content_settings.popups": 0,
+                "profile.content_settings.exceptions.automatic_downloads.*.setting": 1,
+            }
+            chrome_options.add_experimental_option("prefs", prefs)
+
+            chrome_options.add_argument("--disable-web-security")
+            chrome_options.add_argument("--allow-running-insecure-content")
+            chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+            chrome_options.add_argument("--disable-features=BlockInsecurePrivateNetworkRequests")
+            chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+            chrome_options.add_argument("--disable-features=DownloadBubble,DownloadBubbleV2")
+            chrome_options.add_argument("--disable-component-extensions-with-background-pages")
+            chrome_options.add_argument("--disable-default-apps")
+            chrome_options.add_argument("--disable-client-side-phishing-detection")
+            chrome_options.add_argument("--disable-hang-monitor")
+            chrome_options.add_argument("--disable-prompt-on-repost")
+            chrome_options.add_argument("--disable-background-timer-throttling")
+            chrome_options.add_argument("--disable-renderer-backgrounding")
+            chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+            chrome_options.add_argument("--force-color-profile=srgb")
+            chrome_options.add_argument("--metrics-recording-only")
+            chrome_options.add_argument("--disable-background-networking")
+            chrome_options.add_argument("--disable-sync")
+            chrome_options.add_argument("--no-first-run")
+            chrome_options.add_argument("--safebrowsing-disable-auto-update")
+            chrome_options.add_argument("--safebrowsing-disable-download-protection")
+            chrome_options.add_argument("--disable-features=TranslateUI")
+            chrome_options.add_argument("--disable-features=Translate")
+            if is_first_init and attempt == 1:
+                logger.info("🔓 已配置瀏覽器允許不安全內容下載並關閉所有安全檢查", download_dir=download_dir)
 
         driver = _try_launch_chrome(chrome_options, chrome_binary_path, chrome_version, logger)
         if driver:
             wait = WebDriverWait(driver, 10)
             return driver, wait
+
+        # 本次失敗，清理剛建立的臨時目錄
+        try:
+            if os.path.exists(temp_user_data_dir):
+                shutil.rmtree(temp_user_data_dir, ignore_errors=True)
+                _temp_user_data_dirs.remove(temp_user_data_dir)
+        except (ValueError, Exception):
+            pass
 
     # 所有重試都失敗
     if is_linux:

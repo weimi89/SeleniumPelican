@@ -791,13 +791,17 @@ class ImprovedBaseScraper(ABC):
             return False
 
     def close(self) -> None:
-        """關閉瀏覽器"""
+        """關閉瀏覽器並清理臨時目錄"""
         if self.driver:
             try:
                 self.driver.quit()
                 self.logger.info("瀏覽器已關閉")
             except Exception as e:
                 self.logger.warning(f"關閉瀏覽器時發生錯誤: {str(e)}")
+
+        # 清理臨時的 user-data-dir 目錄
+        from .browser_utils import cleanup_temp_user_data_dirs
+        cleanup_temp_user_data_dirs()
 
     def __enter__(self):
         """支援 context manager"""
