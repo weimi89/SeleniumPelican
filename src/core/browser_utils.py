@@ -430,6 +430,8 @@ def init_chrome_browser(
 
         driver = _try_launch_chrome(chrome_options, chrome_binary_path, chrome_version, logger)
         if driver:
+            # 設定頁面載入逾時，避免 driver.get() 卡住 120 秒（預設值）
+            driver.set_page_load_timeout(60)
             wait = WebDriverWait(driver, 10)
             return driver, wait
 
