@@ -367,6 +367,27 @@ class ImprovedBaseScraper(ABC):
                     diagnostic_report=diagnostic_report,
                 )
 
+                # 偵測 ChromeDriver 連線逾時，重啟瀏覽器避免後續重試也卡住
+                error_str = str(e).lower()
+                is_connection_error = any(kw in error_str for kw in [
+                    "timed out", "read timeout", "connectionrefused",
+                    "newconnectionerror", "maxretryerror",
+                ])
+                if is_connection_error and attempt < max_retries:
+                    self.logger.warning(
+                        "🔄 偵測到 ChromeDriver 連線逾時，重新啟動瀏覽器..."
+                    )
+                    try:
+                        if self.driver:
+                            self.driver.quit()
+                    except Exception:
+                        pass
+                    try:
+                        self._init_browser()
+                        self.logger.info("✅ 瀏覽器重啟成功")
+                    except Exception as restart_e:
+                        self.logger.error(f"❌ 瀏覽器重啟失敗: {restart_e}")
+
                 if attempt == max_retries:
                     # 建立增強型異常
                     enhanced_error = AdvancedScrapingError(
