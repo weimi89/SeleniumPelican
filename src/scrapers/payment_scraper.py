@@ -839,14 +839,25 @@ class PaymentScraper(ImprovedBaseScraper):
                     return downloaded_files
 
                 else:
-                    self.logger.error(f"❌ 沒有找到匯款編號連結")
+                    # 檢查頁面是否顯示查無資料的提示
+                    try:
+                        page_text = self.driver.find_element(By.TAG_NAME, "body").text
+                        no_data_keywords = ["查無資料", "無符合", "沒有資料", "0 筆", "無相關"]
+                        if any(kw in page_text for kw in no_data_keywords):
+                            self.logger.info("📭 查詢結果為 0 筆，此日期範圍無匯款資料")
+                        else:
+                            self.logger.error("❌ 沒有找到匯款編號連結")
+                    except Exception:
+                        self.logger.error("❌ 沒有找到匯款編號連結")
+                    return downloaded_files
 
             except Exception as date_e:
                 self.logger.warning(
                     f"⚠️ 填入查詢日期失敗: {date_e}", error="{date_e}", operation="search"
                 )
+                return downloaded_files
 
-            # 尋找並點擊匯出xlsx按鈕
+            # 尋找並點擊匯出xlsx按鈕（僅在未透過匯款編號連結下載時使用）
             try:
                 # 嘗試多種可能的匯出按鈕選擇器
                 xlsx_selectors = [
