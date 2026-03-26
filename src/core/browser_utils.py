@@ -366,12 +366,23 @@ def init_chrome_browser(
             chrome_options.add_argument("--disable-features=VizDisplayCompositor")
             chrome_options.add_argument("--disable-software-rasterizer")
             chrome_options.add_argument("--disable-gpu")
+            # 排程/cron 環境穩定性選項（無 DISPLAY、無 dbus 時也能正常啟動）
+            chrome_options.add_argument("--disable-crash-reporter")
+            chrome_options.add_argument("--disable-in-process-stack-traces")
+            chrome_options.add_argument("--disable-background-networking")
+            chrome_options.add_argument("--disable-default-apps")
+            chrome_options.add_argument("--disable-renderer-backgrounding")
+            chrome_options.add_argument("--disable-background-timer-throttling")
+            chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+            chrome_options.add_argument("--disable-ipc-flooding-protection")
+            chrome_options.add_argument("--disable-setuid-sandbox")
             if is_first_init and attempt == 1:
-                logger.info("🐧 檢測到 Linux 環境，已套用 Ubuntu 優化參數", platform="linux")
+                logger.info("🐧 檢測到 Linux 環境，已套用 Ubuntu 優化 + 排程穩定性參數", platform="linux")
 
         # 如果設定為無頭模式，添加 headless 參數
         if headless:
-            chrome_options.add_argument("--headless")
+            # Chrome 109+ 使用新版 headless 模式，更穩定且功能更完整
+            chrome_options.add_argument("--headless=new")
             if is_linux:
                 chrome_options.add_argument("--disable-software-rasterizer")
                 if is_first_init and attempt == 1:

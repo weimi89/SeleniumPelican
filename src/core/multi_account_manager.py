@@ -7,6 +7,7 @@
 
 import json
 import os
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +21,56 @@ from ..utils.email_notifier import EmailNotifier
 from .browser_utils import _cleanup_headless_chrome, cleanup_temp_user_data_dirs
 from .logging_config import ScrapingLogger, get_logger, log_with_safe_print
 from .type_aliases import AccountConfig
+
+
+def _setup_file_logger(function_name: str):
+    """
+    設定檔案日誌記錄器，將 stdout/stderr 同時輸出到日誌檔
+
+    Args:
+        function_name: 功能名稱，用於日誌檔命名
+
+    Returns:
+        tuple: (log_file_path, original_stdout, original_stderr, log_fh)
+    """
+    logs_dir = Path("logs")
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = logs_dir / f"{timestamp}_{function_name}.log"
+
+    class TeeWriter:
+        """同時輸出到原始 stdout/stderr 和日誌檔"""
+        def __init__(self, original, log_fh):
+            self.original = original
+            self.log_fh = log_fh
+
+        def write(self, data):
+            self.original.write(data)
+            try:
+                self.log_fh.write(data)
+                self.log_fh.flush()
+            except Exception:
+                pass
+
+        def flush(self):
+            self.original.flush()
+            try:
+                self.log_fh.flush()
+            except Exception:
+                pass
+
+        @property
+        def encoding(self):
+            return getattr(self.original, 'encoding', 'utf-8')
+
+    log_fh = open(log_file, "w", encoding="utf-8")
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    sys.stdout = TeeWriter(original_stdout, log_fh)
+    sys.stderr = TeeWriter(original_stderr, log_fh)
+
+    return log_file, original_stdout, original_stderr, log_fh
 
 
 class MultiAccountManager:
@@ -100,9 +151,6 @@ class MultiAccountManager:
             start_month: 開始月份 (用於運費查詢)
             end_month: 結束月份 (用於運費查詢)
         """
-        accounts = self.get_enabled_accounts()
-        start_time = time.time()  # 記錄開始時間
-
         # 設定當前功能名稱（根據 scraper 類別名稱）
         if "Payment" in scraper_class.__name__:
             self.current_function_name = "代收貨款查詢"
@@ -112,6 +160,39 @@ class MultiAccountManager:
             self.current_function_name = "運費未請款查詢"
         else:
             self.current_function_name = scraper_class.__name__
+
+        # 設定檔案日誌
+        log_file, original_stdout, original_stderr, log_fh = _setup_file_logger(
+            self.current_function_name
+        )
+        safe_print(f"📝 執行日誌: {log_file}")
+
+        try:
+            return self._run_all_accounts_inner(
+                scraper_class, headless_override, progress_callback,
+                start_date, end_date, start_month, end_month,
+            )
+        finally:
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
+            try:
+                log_fh.close()
+            except Exception:
+                pass
+
+    def _run_all_accounts_inner(
+        self,
+        scraper_class: type,
+        headless_override: Optional[bool] = None,
+        progress_callback: Optional[Callable[[str], None]] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        start_month: Optional[str] = None,
+        end_month: Optional[str] = None,
+    ) -> list[AccountConfig]:
+        """run_all_accounts 的內部實作（包裹在日誌系統中）"""
+        accounts = self.get_enabled_accounts()
+        start_time = time.time()  # 記錄開始時間
 
         results = []
 
