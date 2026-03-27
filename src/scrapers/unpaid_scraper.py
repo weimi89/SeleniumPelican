@@ -35,7 +35,8 @@ class UnpaidScraper(ImprovedBaseScraper):
     """
 
     def __init__(
-        self, username, password, headless=False, download_base_dir="downloads"
+        self, username, password, headless=False, download_base_dir="downloads",
+        shared_driver=None,
     ):
         # 構建 URL
         url = "http://wedinlb03.e-can.com.tw/wEDI2012/wedilogin.asp"
@@ -46,7 +47,8 @@ class UnpaidScraper(ImprovedBaseScraper):
 
         # 調用父類構造函數
         super().__init__(
-            url=url, username=username, password=password, headless=headless
+            url=url, username=username, password=password, headless=headless,
+            shared_driver=shared_driver,
         )
 
         # download_base_dir 保留以保持向後相容，但標註為已棄用

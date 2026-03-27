@@ -19,6 +19,11 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import (
+    WebDriverException,
+    InvalidSessionIdException,
+    NoSuchWindowException,
+)
 from webdriver_manager.chrome import ChromeDriverManager
 
 from .logging_config import get_logger
@@ -477,3 +482,43 @@ def init_chrome_browser(
         retries=max_retries,
     )
     raise Exception(f"無法啟動 Chrome 瀏覽器 (平台: {sys.platform})")
+
+
+def check_browser_health(driver: Optional[WebDriver]) -> Tuple[bool, Optional[str]]:
+    """
+    檢查 Chrome 瀏覽器是否仍然存活且可回應
+
+    使用輕量操作（current_url + title）偵測瀏覽器狀態，
+    區分瀏覽器崩潰與一般操作錯誤。
+
+    Args:
+        driver: WebDriver 實例
+
+    Returns:
+        tuple: (is_alive: bool, error_msg: str 或 None)
+    """
+    if driver is None:
+        return False, "driver 為 None"
+
+    try:
+        _ = driver.current_url
+        _ = driver.title
+        return True, None
+    except (InvalidSessionIdException, NoSuchWindowException) as e:
+        return False, f"瀏覽器 session 已失效: {e}"
+    except WebDriverException as e:
+        error_str = str(e).lower()
+        crash_indicators = [
+            "no such window",
+            "no such session",
+            "session not created",
+            "chrome not reachable",
+            "unable to connect",
+            "target window already closed",
+            "disconnected",
+        ]
+        if any(indicator in error_str for indicator in crash_indicators):
+            return False, f"瀏覽器已崩潰: {e}"
+        return True, None
+    except Exception as e:
+        return False, f"未知錯誤: {e}"

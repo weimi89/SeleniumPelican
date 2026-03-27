@@ -54,6 +54,7 @@ class PaymentScraper(ImprovedBaseScraper):
         download_base_dir: str = "downloads",
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        shared_driver=None,
     ):
         """
         初始化代收貨款查詢工具
@@ -75,7 +76,8 @@ class PaymentScraper(ImprovedBaseScraper):
 
         # 調用新的父類構造函數
         super().__init__(
-            url=url, username=username, password=password, headless=headless
+            url=url, username=username, password=password, headless=headless,
+            shared_driver=shared_driver,
         )
 
         # 代收貨款查詢特有的屬性

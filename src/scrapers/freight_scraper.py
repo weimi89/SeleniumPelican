@@ -41,6 +41,7 @@ class FreightScraper(ImprovedBaseScraper):
         download_base_dir="downloads",
         start_month=None,
         end_month=None,
+        shared_driver=None,
     ):
         # 構建 URL
         url = "http://wedinlb03.e-can.com.tw/wEDI2012/wedilogin.asp"
@@ -51,7 +52,8 @@ class FreightScraper(ImprovedBaseScraper):
 
         # 調用父類構造函數
         super().__init__(
-            url=url, username=username, password=password, headless=headless
+            url=url, username=username, password=password, headless=headless,
+            shared_driver=shared_driver,
         )
 
         # 子類特有的屬性

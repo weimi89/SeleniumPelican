@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from ..utils.windows_encoding_utils import safe_print
 from ..utils.discord_notifier import DiscordNotifier
 from ..utils.email_notifier import EmailNotifier
-from .browser_utils import _cleanup_headless_chrome, cleanup_temp_user_data_dirs
+from .browser_utils import _cleanup_headless_chrome, cleanup_temp_user_data_dirs, init_chrome_browser, check_browser_health
 from .logging_config import ScrapingLogger, get_logger, log_with_safe_print
 from .type_aliases import AccountConfig
 
@@ -129,6 +129,21 @@ class MultiAccountManager:
         """取得啟用的帳號列表"""
         return [acc for acc in self.config if acc.get("enabled", True)]
 
+    def _create_shared_browser(self, headless):
+        """
+        建立共享瀏覽器實例
+
+        Args:
+            headless: 是否使用無頭模式
+
+        Returns:
+            tuple: (driver, wait)
+        """
+        self.logger.info("🚀 建立共享瀏覽器...")
+        driver, wait = init_chrome_browser(headless=headless, download_dir=None)
+        self.logger.info("✅ 共享瀏覽器建立完成")
+        return (driver, wait)
+
     def run_all_accounts(
         self,
         scraper_class: type,
@@ -206,6 +221,21 @@ class MultiAccountManager:
             )
             self.logger.info("=" * 80)
 
+        # 從環境變數讀取 HEADLESS 設定
+        env_headless = os.getenv("HEADLESS", "true").lower() == "true"
+        use_headless = headless_override if headless_override is not None else env_headless
+
+        # ==================== 共享瀏覽器模式 ====================
+        shared_browser = None
+        if len(accounts) > 1:
+            try:
+                shared_browser = self._create_shared_browser(use_headless)
+            except Exception as e:
+                self.logger.warning(f"⚠️ 共享瀏覽器建立失敗，退回逐帳號模式: {e}")
+                shared_browser = None
+
+        max_account_retries = 2
+
         for i, account in enumerate(accounts, 1):
             username = account["username"]
             password = account["password"]
@@ -222,75 +252,131 @@ class MultiAccountManager:
                 )
                 self.logger.info("-" * 50)
 
-            try:
-                # 主動清理前一個帳號可能殘留的 Chrome 進程和臨時檔案
-                if i > 1:
+            # 共享模式：帳號切換前檢查瀏覽器健康
+            if shared_browser and i > 1:
+                alive, error_msg = check_browser_health(shared_browser[0])
+                if not alive:
+                    self.logger.warning(f"💀 共享瀏覽器已失效: {error_msg}，重建中...")
                     _cleanup_headless_chrome()
                     cleanup_temp_user_data_dirs()
-
-                # 從環境變數讀取 HEADLESS 設定（預設為 true，適合伺服器環境）
-                env_headless = os.getenv("HEADLESS", "true").lower() == "true"
-
-                # 如果有命令列參數覆寫，則使用該設定；否則使用環境變數
-                use_headless = (
-                    headless_override
-                    if headless_override is not None
-                    else env_headless
-                )
-
-                # 準備 scraper 參數，根據不同類型傳遞適當的日期/月份參數
-                # 注意：不再傳遞 download_base_dir，改由各爬蟲從環境變數讀取
-                scraper_kwargs = {
-                    "username": username,
-                    "password": password,
-                    "headless": use_headless,
-                }
-
-                # 檢查 scraper 類別名稱來決定傳遞哪種日期參數
-                if "Freight" in scraper_class.__name__:
-                    # FreightScraper 使用 start_month 和 end_month
-                    if start_month is not None:
-                        scraper_kwargs["start_month"] = start_month
-                    if end_month is not None:
-                        scraper_kwargs["end_month"] = end_month
-                else:
-                    # PaymentScraper 和其他使用 start_date 和 end_date
-                    if start_date is not None:
-                        scraper_kwargs["start_date"] = start_date
-                    if end_date is not None:
-                        scraper_kwargs["end_date"] = end_date
-
-                scraper = scraper_class(**scraper_kwargs)
-
-                downloads = scraper.run_full_process()
-                # 包裝成字典格式
-                result = {
-                    "success": True,
-                    "username": username,
-                    "downloads": downloads,
-                    "message": "無資料可下載" if not downloads else None,
-                }
-                results.append(result)
-
-                # 帳號間暫停一下避免過於頻繁
-                if i < len(accounts):
                     time.sleep(2)
+                    try:
+                        shared_browser = self._create_shared_browser(use_headless)
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ 共享瀏覽器重建失敗，退回逐帳號模式: {e}")
+                        shared_browser = None
 
-            except Exception as e:
-                error_msg = f"帳號 {username} 執行失敗: {str(e)}"
-                if progress_callback:
-                    progress_callback(error_msg)
-                else:
-                    self.logger.error(error_msg, username=username, error=str(e))
+                # 批次冷卻
+                if (i - 1) % 5 == 0:
+                    self.logger.info("🧊 批次冷卻：等待 3 秒...")
+                    time.sleep(3)
 
-                results.append(
-                    {
-                        "success": False,
+            # 準備 scraper 參數
+            scraper_kwargs = {
+                "username": username,
+                "password": password,
+                "headless": use_headless,
+                "shared_driver": shared_browser,
+            }
+
+            if "Freight" in scraper_class.__name__:
+                if start_month is not None:
+                    scraper_kwargs["start_month"] = start_month
+                if end_month is not None:
+                    scraper_kwargs["end_month"] = end_month
+            else:
+                if start_date is not None:
+                    scraper_kwargs["start_date"] = start_date
+                if end_date is not None:
+                    scraper_kwargs["end_date"] = end_date
+
+            # 帳號執行（含重試機制）
+            for retry in range(max_account_retries + 1):
+                try:
+                    scraper = scraper_class(**scraper_kwargs)
+
+                    # 共享模式：非首帳號需要先重置瀏覽器
+                    if shared_browser and i > 1:
+                        scraper.reset_for_new_account(username, password)
+
+                    downloads = scraper.run_full_process()
+
+                    # 更新共享瀏覽器引用
+                    if shared_browser and scraper._shared_driver:
+                        shared_browser = scraper._shared_driver
+
+                    result = {
+                        "success": True,
                         "username": username,
-                        "error": str(e),
-                        "downloads": [],
+                        "downloads": downloads,
+                        "message": "無資料可下載" if not downloads else None,
                     }
-                )
+                    results.append(result)
+                    break
+
+                except Exception as e:
+                    error_str = str(e)
+                    is_retryable = any(kw in error_str for kw in [
+                        'RemoteDisconnected', 'Connection aborted',
+                        'ConnectionResetError', 'MaxRetryError',
+                        'WebDriverException', 'InvalidSessionIdException',
+                        'NoSuchWindowException', 'no such session',
+                        'chrome not reachable', '無法啟動 Chrome',
+                    ])
+
+                    if is_retryable and retry < max_account_retries:
+                        retry_delay = 5 * (retry + 1)
+                        self.logger.warning(
+                            f"⚠️ 帳號 {username} 執行失敗 (第 {retry + 1} 次)，{retry_delay} 秒後重試...",
+                            error=error_str[:100],
+                        )
+
+                        if shared_browser:
+                            _cleanup_headless_chrome()
+                            cleanup_temp_user_data_dirs()
+                            time.sleep(retry_delay)
+                            try:
+                                shared_browser = self._create_shared_browser(use_headless)
+                                scraper_kwargs["shared_driver"] = shared_browser
+                            except Exception:
+                                self.logger.warning("⚠️ 共享瀏覽器重建失敗，退回逐帳號模式")
+                                shared_browser = None
+                                scraper_kwargs["shared_driver"] = None
+                        else:
+                            _cleanup_headless_chrome()
+                            cleanup_temp_user_data_dirs()
+                            time.sleep(retry_delay)
+                        continue
+                    else:
+                        error_msg = f"帳號 {username} 執行失敗: {error_str}"
+                        if progress_callback:
+                            progress_callback(error_msg)
+                        else:
+                            self.logger.error(error_msg, username=username, error=error_str)
+
+                        results.append(
+                            {
+                                "success": False,
+                                "username": username,
+                                "error": error_str,
+                                "downloads": [],
+                            }
+                        )
+                        break
+
+            # 帳號間隔等待
+            if i < len(accounts):
+                time.sleep(2)
+
+        # 清理共享瀏覽器
+        if shared_browser:
+            self.logger.info("🔚 關閉共享瀏覽器...")
+            try:
+                shared_browser[0].quit()
+            except Exception:
+                pass
+            _cleanup_headless_chrome()
+            cleanup_temp_user_data_dirs()
 
         # 分析結果
         successful_accounts = [r for r in results if r["success"]]

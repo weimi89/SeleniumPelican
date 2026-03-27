@@ -10,7 +10,7 @@ from typing import List, Optional
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 
-from .browser_utils import init_chrome_browser
+from .browser_utils import init_chrome_browser, check_browser_health, _cleanup_headless_chrome, cleanup_temp_user_data_dirs
 from .constants import ErrorMessages, Messages, RetryConfig, Selectors, Timeouts
 from .diagnostic_manager import DiagnosticManager, get_diagnostic_manager
 from .exceptions import AdvancedScrapingError, IframeError, LoginError, NavigationError
@@ -37,6 +37,7 @@ class ImprovedBaseScraper(ABC):
         password: str,
         headless: bool = False,
         logger: Optional[ScrapingLogger] = None,
+        shared_driver=None,
     ):
         """
         初始化爬蟲
@@ -47,6 +48,7 @@ class ImprovedBaseScraper(ABC):
             password: 密碼
             headless: 是否使用無頭模式
             logger: 自定義日誌記錄器
+            shared_driver: 共享瀏覽器 (driver, wait) tuple，由 MultiAccountManager 傳入
         """
         self.url = url
         self.username = username
@@ -58,6 +60,10 @@ class ImprovedBaseScraper(ABC):
 
         # 初始化診斷管理器
         self.diagnostic_manager = get_diagnostic_manager()
+
+        # 共享瀏覽器模式
+        self._shared_driver = shared_driver
+        self._owns_browser = shared_driver is None
 
         # WebDriver 相關
         self.driver: Optional[WebDriver] = None
@@ -251,7 +257,13 @@ class ImprovedBaseScraper(ABC):
         return False, None
 
     def _init_browser(self) -> None:
-        """初始化瀏覽器"""
+        """初始化瀏覽器（支援共享模式）"""
+        if self._shared_driver:
+            self.driver, _ = self._shared_driver
+            self.waiter = create_smart_waiter(self.driver, Timeouts.DEFAULT_WAIT)
+            self.logger.info("♻️ 使用共享瀏覽器", headless=self.headless)
+            return
+
         try:
             with LoggingContext(self.logger, "瀏覽器初始化"):
                 self.driver, _ = init_chrome_browser(
@@ -811,17 +823,99 @@ class ImprovedBaseScraper(ABC):
         except Exception:
             return False
 
+    # ==================== 瀏覽器健康檢查與重建 ====================
+
+    def is_browser_alive(self) -> bool:
+        """
+        檢查瀏覽器是否仍然存活且可回應
+
+        Returns:
+            bool: 瀏覽器是否存活
+        """
+        if not self.driver:
+            return False
+        alive, error = check_browser_health(self.driver)
+        if not alive:
+            self.logger.error(f"💀 瀏覽器已失效: {error}")
+        return alive
+
+    def _rebuild_browser(self):
+        """
+        銷毀死掉的瀏覽器並重建新的
+
+        Returns:
+            tuple: 新的 (driver, wait)
+        """
+        import time
+        self.logger.info("🔧 重建瀏覽器...")
+
+        if self.driver:
+            try:
+                self.driver.quit()
+            except Exception:
+                pass
+        _cleanup_headless_chrome()
+        cleanup_temp_user_data_dirs()
+        self.driver = None
+        self.waiter = None
+
+        time.sleep(2)
+
+        self.driver, _ = init_chrome_browser(
+            headless=self.headless,
+            download_dir=str(self.download_dir),
+        )
+        self.waiter = create_smart_waiter(self.driver, Timeouts.DEFAULT_WAIT)
+
+        self._shared_driver = (self.driver, None)
+        self.logger.info("✅ 瀏覽器重建完成")
+        return self.driver, self.waiter
+
+    def reset_for_new_account(self, username: str, password: str) -> None:
+        """
+        清除 session 並準備切換至新帳號（共享瀏覽器模式專用）
+
+        Args:
+            username: 新帳號的使用者名稱
+            password: 新帳號的密碼
+        """
+        from selenium.common.exceptions import WebDriverException, InvalidSessionIdException, NoSuchWindowException
+
+        self.username = username
+        self.password = password
+
+        if not self.is_browser_alive():
+            self._rebuild_browser()
+            return
+
+        try:
+            self.driver.delete_all_cookies()
+            self.driver.get(self.url)
+            if self.waiter:
+                self.waiter.wait_for_page_load(Timeouts.PAGE_LOAD)
+            self.logger.info(f"♻️ 已重置瀏覽器，準備切換至帳號: {username}")
+        except (WebDriverException, InvalidSessionIdException, NoSuchWindowException) as e:
+            self.logger.warning(f"⚠️ 重置失敗，重建瀏覽器: {e}")
+            self._rebuild_browser()
+
     def close(self) -> None:
-        """關閉瀏覽器並清理臨時目錄"""
+        """關閉瀏覽器並清理臨時目錄（共享模式下僅解除引用）"""
+        if not self._owns_browser:
+            self.logger.info("♻️ 共享瀏覽器模式，跳過關閉")
+            self.driver = None
+            self.waiter = None
+            return
+
         if self.driver:
             try:
                 self.driver.quit()
                 self.logger.info("瀏覽器已關閉")
             except Exception as e:
                 self.logger.warning(f"關閉瀏覽器時發生錯誤: {str(e)}")
+                _cleanup_headless_chrome()
+            finally:
+                self.driver = None
 
-        # 清理臨時的 user-data-dir 目錄
-        from .browser_utils import cleanup_temp_user_data_dirs
         cleanup_temp_user_data_dirs()
 
     def __enter__(self):
